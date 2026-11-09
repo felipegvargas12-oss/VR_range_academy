@@ -369,6 +369,8 @@ namespace VRRangeAcademy.Editor
             so.FindProperty("messageToastPanel").objectReferenceValue = toastPanel;
             so.FindProperty("messageToastText").objectReferenceValue = toastTextObj.GetComponent<TextMeshProUGUI>();
             so.FindProperty("profileNameText").objectReferenceValue = profileTxtObj.GetComponent<TextMeshProUGUI>();
+            so.FindProperty("trainingSceneName").stringValue = "WeaponAssembly";
+            so.FindProperty("freeRangeSceneName").stringValue = "ShootingRange";
             so.ApplyModifiedProperties();
 
             // Build Left-Hand Controller Guide Diagram (As seen on left side of the reference image!)
