@@ -640,7 +640,7 @@ namespace VRRangeAcademy.Editor
             wallRearRange.transform.localScale = new Vector3(6.0f, 4.5f, 0.2f);
             wallRearRange.GetComponent<MeshRenderer>().sharedMaterial = matWall;
 
-            BuildDistanceLabel(rangeRoot.transform, new Vector3(4.6f, 3.2f, -5.35f), "SEGURIDAD BALÍSTICA");
+            BuildDistanceLabel(rangeRoot.transform, new Vector3(4.6f, 3.2f, -5.35f), "SEGURIDAD BALÍSTICA", 180f);
 
             // 4.5. Muro de contención balística al fondo (Bullet Trap a Z=28.0m)
             var trap = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -719,7 +719,7 @@ namespace VRRangeAcademy.Editor
             lintel.GetComponent<MeshRenderer>().sharedMaterial = matSteel;
 
             // Cartel luminoso indicador sobre el acceso
-            BuildDistanceLabel(frameRoot.transform, new Vector3(1.58f, 2.65f, 0.5f), "POLÍGONO DE TIRO >>>");
+            BuildDistanceLabel(frameRoot.transform, new Vector3(1.58f, 2.65f, 0.5f), "POLÍGONO DE TIRO >>>", 90f);
 
             // Compuerta corrediza blindada: posicionada abierta a un lado y SIN collider físico bloqueante
             var doorObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -833,8 +833,8 @@ namespace VRRangeAcademy.Editor
                 SetField(hitRec3, "distanceMeters", 18f);
             }
 
-            // 9. Marcador Digital LED (Scoreboard HUD) adosado junto a los puestos de tiro
-            BuildRangeScoreboard(rangeRoot.transform, new Vector3(1.85f, 1.85f, 5.2f), Quaternion.Euler(0f, 90f, 0f), out txtScoreboard, out txtHitToast, out btnBack);
+            // 9. Marcador Digital LED (Scoreboard HUD) adosado a la pared derecha del polígono
+            BuildRangeScoreboard(rangeRoot.transform, new Vector3(7.45f, 1.85f, 4.5f), Quaternion.Euler(0f, 90f, 0f), out txtScoreboard, out txtHitToast, out btnBack);
         }
 
         private static void BuildRangeScoreboard(Transform parent, Vector3 pos, Quaternion rot, out TextMeshProUGUI txtBoard, out TextMeshProUGUI txtToast, out Button btnBack)
@@ -927,12 +927,12 @@ namespace VRRangeAcademy.Editor
             spot.spotAngle = 60f;
         }
 
-        private static void BuildDistanceLabel(Transform parent, Vector3 worldPos, string text)
+        private static void BuildDistanceLabel(Transform parent, Vector3 worldPos, string text, float rotY = 0f)
         {
             var go = new GameObject($"Label_Dist_{text.Replace(" ","")}");
             go.transform.SetParent(parent, false);
             go.transform.position = worldPos;
-            go.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+            go.transform.rotation = Quaternion.Euler(0f, rotY, 0f);
 
             var canvas = go.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.WorldSpace;
