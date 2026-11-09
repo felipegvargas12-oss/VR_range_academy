@@ -28,7 +28,7 @@ namespace VRRangeAcademy.UI
         [SerializeField] private string defaultUserName = "Cadete 01";
 
         [Header("Scene Transition Settings")]
-        [SerializeField] private string trainingSceneName = "ShootingRange";
+        [SerializeField] private string trainingSceneName = "WeaponAssembly";
         [SerializeField] private string freeRangeSceneName = "ShootingRange";
         [SerializeField] private bool isFreeRangeUnlocked = false;
 
