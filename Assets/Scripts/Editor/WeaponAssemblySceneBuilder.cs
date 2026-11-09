@@ -38,8 +38,9 @@ namespace VRRangeAcademy.Editor
             var matSocketGlow = CreateHologramMaterial("Mat_SocketGlow", new Color(0f, 1f, 0.8f, 0.4f));
             var matGuidance = CreateHologramMaterial("Mat_GuidanceLine", new Color(0f, 0.85f, 1f, 0.9f));
             var matController = CreateMaterial("Mat_QuestController", new Color(0.92f, 0.92f, 0.94f), 0.4f, 0.1f);
-            var matProps = AssetDatabase.LoadAssetAtPath<Material>("Assets/Defensive_props/Materials/military prop pack.mat");
-            var matGuns = AssetDatabase.LoadAssetAtPath<Material>("Assets/Low Poly Weapons VOL.1/Gun_MAT.mat");
+            // Materiales URP propios para props y armas (los externos usan Standard/HDRP → magenta en URP)
+            var matProps = CreateMaterial("Mat_Defensive_props_URP", new Color(0.28f, 0.26f, 0.22f), 0.3f, 0.5f);
+            var matGuns  = CreateMaterial("Mat_Guns_URP", new Color(0.14f, 0.15f, 0.17f), 0.6f, 0.85f);
 
             // 3. Iluminación
             BuildLighting();
@@ -63,6 +64,18 @@ namespace VRRangeAcademy.Editor
 
             // 7. Flecha Guía Dinámica
             var arrowObj = BuildGuidanceArrow(benchRoot, matGuidance);
+
+            // 7.5. Polígono de Tiro Integrado (Galería de Disparo y Dianas Reactivas)
+            Transform rangeDoor;
+            Light rangeBeaconLight;
+            TextMeshProUGUI txtScoreboard;
+            TextMeshProUGUI txtHitToast;
+            BuildIntegratedShootingGallery(envRoot, matFloor, matWall, matProps, out rangeDoor, out rangeBeaconLight, out txtScoreboard, out txtHitToast);
+
+            // Manager del Polígono de Tiro
+            var rangeMgrGo = new GameObject("ShootingRangeManager");
+            var rangeMgr = rangeMgrGo.AddComponent<VRRangeAcademy.Shooting.ShootingRangeManager>();
+            ConfigureShootingRangeManager(rangeMgr, rangeDoor, rangeBeaconLight, txtScoreboard, txtHitToast);
 
             // 8. HUD Holográfico con Selector de Armas
             var hudCanvas = BuildHolographicHUD(benchRoot);
@@ -147,43 +160,36 @@ namespace VRRangeAcademy.Editor
             var floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
             floor.name = "Floor";
             floor.transform.SetParent(root.transform);
-            floor.transform.position = new Vector3(0f, -0.05f, 1.5f);
-            floor.transform.localScale = new Vector3(14f, 0.1f, 14f);
+            floor.transform.position = new Vector3(-2.7f, -0.05f, 0.0f);
+            floor.transform.localScale = new Vector3(8.6f, 0.1f, 11.0f);
             floor.GetComponent<MeshRenderer>().sharedMaterial = matFloor;
 
             var wallFront = GameObject.CreatePrimitive(PrimitiveType.Cube);
             wallFront.name = "Front_Wall";
             wallFront.transform.SetParent(root.transform);
-            wallFront.transform.position = new Vector3(0f, 2.25f, 5.5f);
-            wallFront.transform.localScale = new Vector3(14f, 4.5f, 0.2f);
+            wallFront.transform.position = new Vector3(-2.7f, 2.25f, 5.5f);
+            wallFront.transform.localScale = new Vector3(8.6f, 4.5f, 0.2f);
             wallFront.GetComponent<MeshRenderer>().sharedMaterial = matWall;
 
             var wallLeft = GameObject.CreatePrimitive(PrimitiveType.Cube);
             wallLeft.name = "Left_Wall";
             wallLeft.transform.SetParent(root.transform);
-            wallLeft.transform.position = new Vector3(-7.0f, 2.25f, 1.5f);
-            wallLeft.transform.localScale = new Vector3(0.2f, 4.5f, 14f);
+            wallLeft.transform.position = new Vector3(-7.0f, 2.25f, 0.0f);
+            wallLeft.transform.localScale = new Vector3(0.2f, 4.5f, 11.0f);
             wallLeft.GetComponent<MeshRenderer>().sharedMaterial = matWall;
-
-            var wallRight = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            wallRight.name = "Right_Wall";
-            wallRight.transform.SetParent(root.transform);
-            wallRight.transform.position = new Vector3(7.0f, 2.25f, 1.5f);
-            wallRight.transform.localScale = new Vector3(0.2f, 4.5f, 14f);
-            wallRight.GetComponent<MeshRenderer>().sharedMaterial = matWall;
 
             var wallRear = GameObject.CreatePrimitive(PrimitiveType.Cube);
             wallRear.name = "Rear_Wall";
             wallRear.transform.SetParent(root.transform);
-            wallRear.transform.position = new Vector3(0f, 2.25f, -5.5f);
-            wallRear.transform.localScale = new Vector3(14f, 4.5f, 0.2f);
+            wallRear.transform.position = new Vector3(-2.7f, 2.25f, -5.5f);
+            wallRear.transform.localScale = new Vector3(8.6f, 4.5f, 0.2f);
             wallRear.GetComponent<MeshRenderer>().sharedMaterial = matWall;
 
             var ceiling = GameObject.CreatePrimitive(PrimitiveType.Cube);
             ceiling.name = "Ceiling";
             ceiling.transform.SetParent(root.transform);
-            ceiling.transform.position = new Vector3(0f, 4.5f, 1.5f);
-            ceiling.transform.localScale = new Vector3(14f, 0.15f, 14f);
+            ceiling.transform.position = new Vector3(-2.7f, 4.5f, 0.0f);
+            ceiling.transform.localScale = new Vector3(8.6f, 0.15f, 11.0f);
             ceiling.GetComponent<MeshRenderer>().sharedMaterial = matWall;
         }
 
@@ -192,37 +198,37 @@ namespace VRRangeAcademy.Editor
             var propsFbx = "Assets/Defensive_props/models/Defensive_props.fbx";
             var weaponsRoot = "Assets/Low Poly Weapons VOL.1/Models/";
 
-            // 1. Armeros en la pared frontal (detrás de la mesa central)
-            InstantiateWeaponOrnament(weaponsRoot + "AK74.fbx", new Vector3(-1.8f, 2.2f, 5.38f), Quaternion.Euler(0f, 180f, 0f), 1.2f, matGuns, root.transform);
-            InstantiateWeaponOrnament(weaponsRoot + "M4_8.fbx", new Vector3(-0.6f, 2.2f, 5.38f), Quaternion.Euler(0f, 180f, 0f), 1.2f, matGuns, root.transform);
-            InstantiateWeaponOrnament(weaponsRoot + "Bennelli_M4.fbx", new Vector3(0.6f, 2.2f, 5.38f), Quaternion.Euler(0f, 180f, 0f), 1.2f, matGuns, root.transform);
-            InstantiateWeaponOrnament(weaponsRoot + "M107.fbx", new Vector3(1.8f, 2.2f, 5.38f), Quaternion.Euler(0f, 180f, 0f), 1.1f, matGuns, root.transform);
+            // 1. Armeros en la pared frontal del taller
+            InstantiateWeaponOrnament(weaponsRoot + "AK74.fbx", new Vector3(-4.5f, 2.2f, 5.38f), Quaternion.Euler(0f, 180f, 0f), 1.2f, matGuns, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "M4_8.fbx", new Vector3(-3.3f, 2.2f, 5.38f), Quaternion.Euler(0f, 180f, 0f), 1.2f, matGuns, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "Bennelli_M4.fbx", new Vector3(-2.1f, 2.2f, 5.38f), Quaternion.Euler(0f, 180f, 0f), 1.2f, matGuns, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "M107.fbx", new Vector3(-0.9f, 2.2f, 5.38f), Quaternion.Euler(0f, 180f, 0f), 1.1f, matGuns, root.transform);
 
             // Tablero perforado de armero
             var pegboard = GameObject.CreatePrimitive(PrimitiveType.Cube);
             pegboard.name = "Wall_Gun_Pegboard";
             pegboard.transform.SetParent(root.transform);
-            pegboard.transform.position = new Vector3(0f, 2.2f, 5.42f);
+            pegboard.transform.position = new Vector3(-2.7f, 2.2f, 5.42f);
             pegboard.transform.localScale = new Vector3(4.8f, 1.4f, 0.05f);
             var matWood = CreateMaterial("Mat_Pegboard_Wood", new Color(0.35f, 0.25f, 0.16f), 0.2f, 0f);
             pegboard.GetComponent<MeshRenderer>().sharedMaterial = matWood;
 
-            // 2. Bancos auxiliares en la pared frontal
-            InstantiateMeshProp(propsFbx, "workbench", new Vector3(-3.5f, 0f, 4.8f), Quaternion.Euler(0f, 90f, 0f), new Vector3(1.2f, 1.05f, 1.05f), matProps, root.transform);
-            InstantiateMeshProp(propsFbx, "workbench", new Vector3(3.5f, 0f, 4.8f), Quaternion.Euler(0f, 90f, 0f), new Vector3(1.2f, 1.05f, 1.05f), matProps, root.transform);
+            // 2. Banco auxiliar frontal en el taller
+            InstantiateMeshProp(propsFbx, "workbench", new Vector3(-5.2f, 0f, 4.8f), Quaternion.Euler(0f, 90f, 0f), new Vector3(1.2f, 1.05f, 1.05f), matProps, root.transform);
 
             // Props en banco izquierdo: Consola electrónica, caja de herramientas, canister y granadas
-            InstantiateMeshProp(propsFbx, "electronics1", new Vector3(-3.5f, 1.05f, 4.8f), Quaternion.identity, Vector3.one * 0.9f, matProps, root.transform);
-            InstantiateMeshProp(propsFbx, "ammo_box", new Vector3(-4.2f, 1.05f, 4.8f), Quaternion.Euler(0f, 25f, 0f), Vector3.one * 0.9f, matProps, root.transform);
-            InstantiateWeaponOrnament(weaponsRoot + "RGD-5.fbx", new Vector3(-2.8f, 1.05f, 4.8f), Quaternion.identity, 1.3f, matGuns, root.transform);
-            InstantiateWeaponOrnament(weaponsRoot + "Smoke.fbx", new Vector3(-2.6f, 1.05f, 4.7f), Quaternion.Euler(0f, 30f, 0f), 1.3f, matGuns, root.transform);
+            InstantiateMeshProp(propsFbx, "electronics1", new Vector3(-5.2f, 1.05f, 4.8f), Quaternion.identity, Vector3.one * 0.9f, matProps, root.transform);
+            InstantiateMeshProp(propsFbx, "ammo_box", new Vector3(-5.8f, 1.05f, 4.8f), Quaternion.Euler(0f, 25f, 0f), Vector3.one * 0.9f, matProps, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "RGD-5.fbx", new Vector3(-4.6f, 1.05f, 4.8f), Quaternion.identity, 1.3f, matGuns, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "Smoke.fbx", new Vector3(-4.4f, 1.05f, 4.7f), Quaternion.Euler(0f, 30f, 0f), 1.3f, matGuns, root.transform);
 
-            // Props en banco derecho: Osciloscopio, cajas y miras tácticas ópticas
-            InstantiateMeshProp(propsFbx, "electronics3", new Vector3(3.5f, 1.05f, 4.8f), Quaternion.identity, Vector3.one * 0.9f, matProps, root.transform);
-            InstantiateMeshProp(propsFbx, "box2", new Vector3(4.2f, 1.05f, 4.8f), Quaternion.Euler(0f, -15f, 0f), Vector3.one * 0.85f, matProps, root.transform);
-            InstantiateWeaponOrnament(weaponsRoot + "ELCAN.fbx", new Vector3(2.8f, 1.05f, 4.8f), Quaternion.Euler(0f, 45f, 0f), 1.3f, matGuns, root.transform);
-            InstantiateWeaponOrnament(weaponsRoot + "TAN_LR_Scope_01.fbx", new Vector3(2.5f, 1.05f, 4.7f), Quaternion.Euler(0f, -20f, 0f), 1.2f, matGuns, root.transform);
-            InstantiateWeaponOrnament(weaponsRoot + "ANPEQ15.fbx", new Vector3(3.0f, 1.05f, 4.6f), Quaternion.identity, 1.3f, matGuns, root.transform);
+            // Props en banco auxiliar trasero: Osciloscopio, cajas y miras tácticas ópticas
+            InstantiateMeshProp(propsFbx, "workbench", new Vector3(-3.5f, 0f, -3.8f), Quaternion.Euler(0f, 90f, 0f), new Vector3(1.2f, 1.05f, 1.05f), matProps, root.transform);
+            InstantiateMeshProp(propsFbx, "electronics3", new Vector3(-3.5f, 1.05f, -3.8f), Quaternion.identity, Vector3.one * 0.9f, matProps, root.transform);
+            InstantiateMeshProp(propsFbx, "box2", new Vector3(-4.2f, 1.05f, -3.8f), Quaternion.Euler(0f, -15f, 0f), Vector3.one * 0.85f, matProps, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "ELCAN.fbx", new Vector3(-2.8f, 1.05f, -3.8f), Quaternion.Euler(0f, 45f, 0f), 1.3f, matGuns, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "TAN_LR_Scope_01.fbx", new Vector3(-2.5f, 1.05f, -3.7f), Quaternion.Euler(0f, -20f, 0f), 1.2f, matGuns, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "ANPEQ15.fbx", new Vector3(-3.0f, 1.05f, -3.6f), Quaternion.identity, 1.3f, matGuns, root.transform);
 
             // 3. Rincón Izquierdo (Pallet con cajas, bidones de combustible, obús y erizo defensivo)
             InstantiateMeshProp(propsFbx, "pallet", new Vector3(-5.6f, 0f, 2.5f), Quaternion.Euler(0f, 20f, 0f), Vector3.one, matProps, root.transform);
@@ -237,17 +243,17 @@ namespace VRRangeAcademy.Editor
             InstantiateWeaponOrnament(weaponsRoot + "RPG7.fbx", new Vector3(-6.88f, 2.3f, 1.0f), Quaternion.Euler(0f, 90f, 0f), 1.2f, matGuns, root.transform);
             InstantiateWeaponOrnament(weaponsRoot + "M249.fbx", new Vector3(-6.88f, 1.7f, 1.0f), Quaternion.Euler(0f, 90f, 0f), 1.1f, matGuns, root.transform);
 
-            // 5. Rincón Derecho (Ametralladora M2 .50cal montada en trípode, barricada de sacos terreros)
-            InstantiateWeaponOrnament(weaponsRoot + "M2_50cal.fbx", new Vector3(5.2f, 0f, 2.0f), Quaternion.Euler(0f, -45f, 0f), 1.0f, matGuns, root.transform);
-            InstantiateMeshProp(propsFbx, "sandbag barricade", new Vector3(5.6f, 0f, 1.2f), Quaternion.Euler(0f, -65f, 0f), Vector3.one, matProps, root.transform);
-            InstantiateMeshProp(propsFbx, "ammo_box", new Vector3(4.6f, 0f, 2.4f), Quaternion.identity, Vector3.one * 1.2f, matProps, root.transform);
-            InstantiateMeshProp(propsFbx, "mortar.001", new Vector3(5.4f, 0f, 3.2f), Quaternion.Euler(0f, -30f, 0f), Vector3.one * 1.1f, matProps, root.transform);
+            // 5. Rincón Trasero Izquierdo (Ametralladora M2 .50cal montada en trípode, nido de sacos terreros y mortero)
+            InstantiateWeaponOrnament(weaponsRoot + "M2_50cal.fbx", new Vector3(-5.6f, 0f, -1.8f), Quaternion.Euler(0f, 135f, 0f), 1.0f, matGuns, root.transform);
+            InstantiateMeshProp(propsFbx, "sandbag barricade", new Vector3(-5.6f, 0f, -1.0f), Quaternion.Euler(0f, 90f, 0f), Vector3.one, matProps, root.transform);
+            InstantiateMeshProp(propsFbx, "ammo_box", new Vector3(-4.8f, 0f, -2.4f), Quaternion.identity, Vector3.one * 1.2f, matProps, root.transform);
+            InstantiateMeshProp(propsFbx, "mortar.001", new Vector3(-5.0f, 0f, -3.0f), Quaternion.Euler(0f, 30f, 0f), Vector3.one * 1.1f, matProps, root.transform);
 
             // 6. Pared Trasera (Armero auxiliar con puerta blindada)
             var doorFrame = GameObject.CreatePrimitive(PrimitiveType.Cube);
             doorFrame.name = "Armory_Security_Door";
             doorFrame.transform.SetParent(root.transform);
-            doorFrame.transform.position = new Vector3(0f, 1.5f, -5.4f);
+            doorFrame.transform.position = new Vector3(-2.7f, 1.5f, -5.4f);
             doorFrame.transform.localScale = new Vector3(1.6f, 3.0f, 0.15f);
             var matSteel = CreateMaterial("Mat_Armory_Steel", new Color(0.18f, 0.2f, 0.22f), 0.7f, 0.8f);
             doorFrame.GetComponent<MeshRenderer>().sharedMaterial = matSteel;
@@ -555,6 +561,335 @@ namespace VRRangeAcademy.Editor
             manager.LoadWeapon(0);
         }
 
+        private static void ConfigureShootingRangeManager(VRRangeAcademy.Shooting.ShootingRangeManager mgr, Transform door, Light beacon, TextMeshProUGUI scoreboard, TextMeshProUGUI hitToast)
+        {
+            var so = new SerializedObject(mgr);
+            so.FindProperty("securityDoor").objectReferenceValue = door;
+            so.FindProperty("doorStatusLight").objectReferenceValue = beacon;
+            so.FindProperty("txtScoreboard").objectReferenceValue = scoreboard;
+            so.FindProperty("txtLastHitToast").objectReferenceValue = hitToast;
+            so.ApplyModifiedProperties();
+        }
+
+        private static void BuildIntegratedShootingGallery(GameObject root, Material matFloor, Material matWall, Material matProps, out Transform doorTrans, out Light beaconLight, out TextMeshProUGUI txtScoreboard, out TextMeshProUGUI txtHitToast)
+        {
+            var rangeRoot = new GameObject("--- SHOOTING GALLERY (POLIGONO INTEGRADO) ---");
+            rangeRoot.transform.SetParent(root.transform, false);
+
+            var matRangeFloor = CreateMaterial("Mat_RangeFloor", new Color(0.11f, 0.12f, 0.13f), 0.1f, 0.1f);
+            var matBulletTrap = CreateMaterial("Mat_BulletTrap", new Color(0.08f, 0.09f, 0.10f), 0.5f, 0.8f);
+            var matGlass = CreateHologramMaterial("Mat_BallisticGlass", new Color(0.10f, 0.45f, 0.65f, 0.30f));
+            var matSteel = CreateMaterial("Mat_Armory_Steel", new Color(0.18f, 0.20f, 0.22f), 0.7f, 0.8f);
+            var matRedLine = CreateMaterial("Mat_SafetyRedLine", new Color(0.95f, 0.15f, 0.12f), 0.2f, 0.0f);
+            var matAcoustic = CreateMaterial("Mat_BoothAcoustic", new Color(0.18f, 0.22f, 0.26f), 0.05f, 0.0f);
+
+            // 1. Suelo del polígono (extendiéndose desde Z=-5.5 hasta Z=22.5)
+            var floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            floor.name = "Range_Floor";
+            floor.transform.SetParent(rangeRoot.transform, false);
+            floor.transform.position = new Vector3(4.6f, -0.05f, 8.5f);
+            floor.transform.localScale = new Vector3(6.0f, 0.1f, 28.0f);
+            floor.GetComponent<MeshRenderer>().sharedMaterial = matRangeFloor;
+
+            // 2. Techo del polígono
+            var ceiling = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            ceiling.name = "Range_Ceiling";
+            ceiling.transform.SetParent(rangeRoot.transform, false);
+            ceiling.transform.position = new Vector3(4.6f, 4.5f, 8.5f);
+            ceiling.transform.localScale = new Vector3(6.0f, 0.15f, 28.0f);
+            ceiling.GetComponent<MeshRenderer>().sharedMaterial = matWall;
+
+            // 3. Pared lateral derecha de la galería
+            var wallRight = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            wallRight.name = "Range_Right_Wall";
+            wallRight.transform.SetParent(rangeRoot.transform, false);
+            wallRight.transform.position = new Vector3(7.6f, 2.25f, 8.5f);
+            wallRight.transform.localScale = new Vector3(0.2f, 4.5f, 28.0f);
+            wallRight.GetComponent<MeshRenderer>().sharedMaterial = matWall;
+
+            // 4. Muro de contención balística al fondo (Bullet Trap a Z=22.5)
+            var trap = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            trap.name = "Range_Bullet_Trap_Wall";
+            trap.transform.SetParent(rangeRoot.transform, false);
+            trap.transform.position = new Vector3(4.6f, 2.25f, 22.5f);
+            trap.transform.localScale = new Vector3(6.0f, 4.5f, 0.4f);
+            trap.GetComponent<MeshRenderer>().sharedMaterial = matBulletTrap;
+
+            // Franja de advertencia en el muro de contención
+            var warningStripe = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            warningStripe.name = "Trap_Warning_Stripe";
+            warningStripe.transform.SetParent(trap.transform, false);
+            warningStripe.transform.localPosition = new Vector3(0f, 0.4f, -0.52f);
+            warningStripe.transform.localScale = new Vector3(0.98f, 0.08f, 0.1f);
+            Object.DestroyImmediate(warningStripe.GetComponent<Collider>());
+            var matWarning = CreateMaterial("Mat_WarningYellow", new Color(0.95f, 0.75f, 0.05f), 0.3f, 0.0f);
+            warningStripe.GetComponent<MeshRenderer>().sharedMaterial = matWarning;
+
+            // 5. Pared Divisoria entre Taller y Galería (a X=1.6m)
+            var divBack = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            divBack.name = "Divider_Rear_Wall";
+            divBack.transform.SetParent(rangeRoot.transform, false);
+            divBack.transform.position = new Vector3(1.6f, 2.25f, -3.0f);
+            divBack.transform.localScale = new Vector3(0.18f, 4.5f, 5.0f);
+            divBack.GetComponent<MeshRenderer>().sharedMaterial = matWall;
+
+            var divLower = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            divLower.name = "Divider_Window_Base";
+            divLower.transform.SetParent(rangeRoot.transform, false);
+            divLower.transform.position = new Vector3(1.6f, 0.5f, 3.5f);
+            divLower.transform.localScale = new Vector3(0.18f, 1.0f, 4.0f);
+            divLower.GetComponent<MeshRenderer>().sharedMaterial = matSteel;
+
+            var glassWindow = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            glassWindow.name = "Divider_Ballistic_Glass";
+            glassWindow.transform.SetParent(rangeRoot.transform, false);
+            glassWindow.transform.position = new Vector3(1.6f, 2.4f, 3.5f);
+            glassWindow.transform.localScale = new Vector3(0.06f, 2.8f, 4.0f);
+            glassWindow.GetComponent<MeshRenderer>().sharedMaterial = matGlass;
+
+            // Marco de compuerta de seguridad (en Z=0.5m)
+            var doorFrame = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            doorFrame.name = "Range_Door_Frame";
+            doorFrame.transform.SetParent(rangeRoot.transform, false);
+            doorFrame.transform.position = new Vector3(1.6f, 1.5f, 0.5f);
+            doorFrame.transform.localScale = new Vector3(0.22f, 3.0f, 1.8f);
+            doorFrame.GetComponent<MeshRenderer>().sharedMaterial = matSteel;
+
+            // Compuerta corrediza blindada
+            var doorObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            doorObj.name = "Range_Security_Gate";
+            doorObj.transform.SetParent(rangeRoot.transform, false);
+            doorObj.transform.position = new Vector3(1.6f, 1.4f, 0.5f);
+            doorObj.transform.localScale = new Vector3(0.14f, 2.7f, 1.6f);
+            doorObj.GetComponent<MeshRenderer>().sharedMaterial = matSteel;
+            doorTrans = doorObj.transform;
+
+            // Baliza de acceso LED sobre la puerta
+            var beaconGo = new GameObject("Range_Access_Beacon");
+            beaconGo.transform.SetParent(rangeRoot.transform, false);
+            beaconGo.transform.position = new Vector3(1.6f, 3.05f, 0.5f);
+            beaconLight = beaconGo.AddComponent<Light>();
+            beaconLight.type = LightType.Point;
+            beaconLight.color = Color.red;
+            beaconLight.intensity = 2.0f;
+            beaconLight.range = 4.0f;
+
+            // 6. Tres Puestos de Tiro independientes (carriles A/B/C) — se crean via BuildShootingBooth más abajo
+
+            // 7. Iluminación Downrange de los Blancos (3 carriles A/B/C)
+            // Carril A (X=3.0) -> Diana3(18m)   Carril B (X=4.6) -> Diana1(5m)   Carril C (X=6.2) -> Diana2(11m)
+            CreateDownrangeSpotLight(rangeRoot.transform, new Vector3(4.6f, 3.8f, 5.0f),  new Vector3(4.6f, 1.35f, 6.5f));
+            CreateDownrangeSpotLight(rangeRoot.transform, new Vector3(6.2f, 3.8f, 10.5f), new Vector3(6.2f, 1.0f, 12.0f));
+            CreateDownrangeSpotLight(rangeRoot.transform, new Vector3(3.0f, 3.8f, 17.5f), new Vector3(3.0f, 1.0f, 19.0f));
+
+            // 7.5. Señalización de distancias sobre las dianas
+            BuildDistanceLabel(rangeRoot.transform, new Vector3(4.6f, 3.0f, 6.5f),  "5 m");
+            BuildDistanceLabel(rangeRoot.transform, new Vector3(6.2f, 3.0f, 12.0f), "11 m");
+            BuildDistanceLabel(rangeRoot.transform, new Vector3(3.0f, 3.0f, 19.0f), "18 m");
+
+            // 7.6. Tres puestos de tiro separados (repisa + divisor acústico por carril)
+            BuildShootingBooth(rangeRoot.transform, 4.6f, matSteel, matAcoustic, matRedLine, "B");  // puesto central -> Diana1
+            BuildShootingBooth(rangeRoot.transform, 6.2f, matSteel, matAcoustic, matRedLine, "C");  // puesto derecho -> Diana2
+            BuildShootingBooth(rangeRoot.transform, 3.0f, matSteel, matAcoustic, matRedLine, "A");  // puesto izquierdo -> Diana3
+
+            // 8. Dianas Reactivas — carriles A(X=3.0) B(X=4.6) C(X=6.2)
+            // Diana 1 carril B: Circular a 5m
+            var targetPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Glowing Rifts/Shooting Target/ShootingTarget.prefab");
+            if (targetPrefab != null)
+            {
+                var t1 = Object.Instantiate(targetPrefab, rangeRoot.transform);
+                t1.name = "Target_Lane1_5m";
+                t1.transform.position = new Vector3(4.6f, 1.35f, 6.5f);  // Carril B
+                t1.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+                t1.transform.localScale = Vector3.one * 1.5f;
+
+                var col = t1.AddComponent<BoxCollider>();
+                col.size = new Vector3(0.9f, 0.9f, 0.15f);
+                col.center = Vector3.zero;
+
+                var hitRec = t1.AddComponent<VRRangeAcademy.Shooting.TargetHitReceiver>();
+                SetField(hitRec, "targetKind", VRRangeAcademy.Shooting.TargetKind.ConcentricRing);
+                SetField(hitRec, "targetName", "Diana Circular 5m");
+                SetField(hitRec, "distanceMeters", 5f);
+            }
+
+            // Dianas 2 y 3: Siluetas Dummy
+            var dummyPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Blink/Art/NPCs/Stylized/DummyTarget/DummyTarget.prefab");
+            if (dummyPrefab != null)
+            {
+                // Diana 2 carril C: Silueta a 11m
+                var t2 = Object.Instantiate(dummyPrefab, rangeRoot.transform);
+                t2.name = "Target_Lane2_Dummy_11m";
+                t2.transform.position = new Vector3(6.2f, 0.95f, 12.0f);  // Carril C
+                t2.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+                t2.transform.localScale = Vector3.one * 0.85f;
+
+                var col2 = t2.AddComponent<BoxCollider>();
+                col2.size = new Vector3(0.9f, 2.1f, 0.5f);
+                col2.center = Vector3.zero;
+
+                var hitRec2 = t2.AddComponent<VRRangeAcademy.Shooting.TargetHitReceiver>();
+                SetField(hitRec2, "targetKind", VRRangeAcademy.Shooting.TargetKind.Silhouette);
+                SetField(hitRec2, "targetName", "Silueta Táctica 11m");
+                SetField(hitRec2, "distanceMeters", 11f);
+
+                // Diana 3 carril A: Silueta a 18m
+                var t3 = Object.Instantiate(dummyPrefab, rangeRoot.transform);
+                t3.name = "Target_Lane3_Dummy_18m";
+                t3.transform.position = new Vector3(3.0f, 0.95f, 19.0f);  // Carril A
+                t3.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+                t3.transform.localScale = Vector3.one * 0.85f;
+
+                var col3 = t3.AddComponent<BoxCollider>();
+                col3.size = new Vector3(0.9f, 2.1f, 0.5f);
+                col3.center = Vector3.zero;
+
+                var hitRec3 = t3.AddComponent<VRRangeAcademy.Shooting.TargetHitReceiver>();
+                SetField(hitRec3, "targetKind", VRRangeAcademy.Shooting.TargetKind.Silhouette);
+                SetField(hitRec3, "targetName", "Silueta Francotirador 18m");
+                SetField(hitRec3, "distanceMeters", 18f);
+            }
+
+            // 9. Marcador Digital LED (Scoreboard HUD)
+            BuildRangeScoreboard(rangeRoot.transform, new Vector3(2.65f, 1.85f, 0.9f), Quaternion.Euler(0f, -90f, 0f), out txtScoreboard, out txtHitToast);
+        }
+
+        private static void BuildRangeScoreboard(Transform parent, Vector3 pos, Quaternion rot, out TextMeshProUGUI txtBoard, out TextMeshProUGUI txtToast)
+        {
+            var boardGo = new GameObject("Scoreboard_HUD");
+            boardGo.transform.SetParent(parent, false);
+            boardGo.transform.position = pos;
+            boardGo.transform.rotation = rot;
+
+            var canvas = boardGo.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            var rt = boardGo.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(720f, 440f);
+            rt.localScale = Vector3.one * 0.0016f;
+
+            boardGo.AddComponent<CanvasScaler>();
+            boardGo.AddComponent<GraphicRaycaster>();
+
+            var bg = new GameObject("Bg");
+            bg.transform.SetParent(boardGo.transform, false);
+            var img = bg.AddComponent<Image>();
+            img.color = new Color(0.04f, 0.08f, 0.12f, 0.94f);
+            var bgRt = bg.GetComponent<RectTransform>();
+            bgRt.anchorMin = Vector2.zero;
+            bgRt.anchorMax = Vector2.one;
+            bgRt.sizeDelta = Vector2.zero;
+
+            var outline = bg.AddComponent<Outline>();
+            outline.effectColor = new Color(0f, 0.85f, 1f, 0.7f);
+            outline.effectDistance = new Vector2(2f, 2f);
+
+            CreateText(boardGo.transform, "Title", "POLÍGONO DE TIRO - REGISTRO BALÍSTICO", 24, new Vector2(0f, 175f), new Vector2(680f, 35f), FontStyles.Bold, new Color(0f, 0.9f, 1f));
+
+            txtBoard = CreateText(boardGo.transform, "Txt_Stats", "ESPERANDO VALIDACIÓN DE APRENDIZAJE MECÁNICO", 20, new Vector2(0f, 40f), new Vector2(660f, 180f), FontStyles.Normal, Color.white);
+            txtBoard.alignment = TextAlignmentOptions.TopLeft;
+
+            txtToast = CreateText(boardGo.transform, "Txt_HitToast", "", 24, new Vector2(0f, -145f), new Vector2(660f, 45f), FontStyles.Bold, new Color(0.2f, 1f, 0.6f));
+        }
+
+        private static void BuildShootingBooth(Transform parent, float centerX, Material matSteel, Material matAcoustic, Material matRedLine, string lane)
+        {
+            // Repisa de apoyo (mostrador del puesto)
+            var counter = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            counter.name = $"Booth_{lane}_Counter";
+            counter.transform.SetParent(parent, false);
+            counter.transform.position = new Vector3(centerX, 1.05f, 0.9f);
+            counter.transform.localScale = new Vector3(1.5f, 0.08f, 0.6f);
+            counter.GetComponent<MeshRenderer>().sharedMaterial = matSteel;
+
+            // Divisor izquierdo del carril
+            var dL = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            dL.name = $"Booth_{lane}_Divider_L";
+            dL.transform.SetParent(parent, false);
+            dL.transform.position = new Vector3(centerX - 0.78f, 1.6f, 0.65f);
+            dL.transform.localScale = new Vector3(0.07f, 2.2f, 1.5f);
+            Object.DestroyImmediate(dL.GetComponent<Collider>());
+            dL.GetComponent<MeshRenderer>().sharedMaterial = matAcoustic;
+
+            // Divisor derecho del carril
+            var dR = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            dR.name = $"Booth_{lane}_Divider_R";
+            dR.transform.SetParent(parent, false);
+            dR.transform.position = new Vector3(centerX + 0.78f, 1.6f, 0.65f);
+            dR.transform.localScale = new Vector3(0.07f, 2.2f, 1.5f);
+            Object.DestroyImmediate(dR.GetComponent<Collider>());
+            dR.GetComponent<MeshRenderer>().sharedMaterial = matAcoustic;
+
+            // Línea roja de disparo en el suelo
+            var line = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            line.name = $"Safety_Line_{lane}";
+            line.transform.SetParent(parent, false);
+            line.transform.position = new Vector3(centerX, 0.01f, 1.2f);
+            line.transform.localScale = new Vector3(1.5f, 0.005f, 0.12f);
+            Object.DestroyImmediate(line.GetComponent<Collider>());
+            line.GetComponent<MeshRenderer>().sharedMaterial = matRedLine;
+
+            // Foco cenital del puesto
+            var spotGo = new GameObject($"Booth_{lane}_SpotLight");
+            spotGo.transform.SetParent(parent, false);
+            spotGo.transform.position = new Vector3(centerX, 3.6f, 0.5f);
+            spotGo.transform.rotation = Quaternion.Euler(80f, 0f, 0f);
+            var spot = spotGo.AddComponent<Light>();
+            spot.type = LightType.Spot;
+            spot.color = new Color(0.95f, 0.96f, 1.0f);
+            spot.intensity = 3.0f;
+            spot.range = 5.5f;
+            spot.spotAngle = 55f;
+        }
+
+        private static void BuildDistanceLabel(Transform parent, Vector3 worldPos, string text)
+        {
+            var go = new GameObject($"Label_Dist_{text.Replace(" ","")}");
+            go.transform.SetParent(parent, false);
+            go.transform.position = worldPos;
+            go.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+
+            var canvas = go.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            var rt = go.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(300f, 80f);
+            rt.localScale = Vector3.one * 0.004f;
+            go.AddComponent<CanvasScaler>();
+
+            var txtGo = new GameObject("Txt");
+            txtGo.transform.SetParent(go.transform, false);
+            var tmp = txtGo.AddComponent<TextMeshProUGUI>();
+            tmp.text = text;
+            tmp.fontSize = 52;
+            tmp.fontStyle = FontStyles.Bold;
+            tmp.color = new Color(1f, 0.85f, 0.1f);
+            tmp.alignment = TextAlignmentOptions.Center;
+            var trt = txtGo.GetComponent<RectTransform>();
+            trt.anchorMin = Vector2.zero;
+            trt.anchorMax = Vector2.one;
+            trt.sizeDelta = Vector2.zero;
+        }
+
+        private static void CreateDownrangeSpotLight(Transform parent, Vector3 pos, Vector3 target)
+        {
+            var go = new GameObject("SpotLight_Target");
+            go.transform.SetParent(parent, false);
+            go.transform.position = pos;
+            go.transform.LookAt(target);
+
+            var l = go.AddComponent<Light>();
+            l.type = LightType.Spot;
+            l.color = new Color(1.0f, 0.95f, 0.88f);
+            l.intensity = 4.0f;
+            l.range = 10f;
+            l.spotAngle = 48f;
+        }
+
+        private static void SetField(object obj, string fieldName, object value)
+        {
+            var fi = obj.GetType().GetField(fieldName, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+            if (fi != null) fi.SetValue(obj, value);
+        }
+
         private static GameObject InstantiateMeshProp(string fbxPath, string meshName, Vector3 pos, Quaternion rot, Vector3 scale, Material mat, Transform parent)
         {
             var assets = AssetDatabase.LoadAllAssetsAtPath(fbxPath);
@@ -581,7 +916,7 @@ namespace VRRangeAcademy.Editor
                 var mr = go.AddComponent<MeshRenderer>();
                 if (mat == null)
                 {
-                    mat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Defensive_props/Materials/military prop pack.mat");
+                    mat = CreateMaterial("Mat_Defensive_props_URP", new Color(0.28f, 0.26f, 0.22f), 0.3f, 0.5f);
                 }
                 mr.sharedMaterial = mat;
             }

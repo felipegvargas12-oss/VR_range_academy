@@ -244,6 +244,18 @@ namespace VRRangeAcademy.Assembly
                 }
             }
 
+            // Si el jugador tenía un arma funcional equipada, removerla al reiniciar/cambiar arma
+            var cam = Camera.main;
+            if (cam != null)
+            {
+                var existing = cam.GetComponentInChildren<Shooting.WeaponShootingController>();
+                if (existing != null)
+                {
+                    if (Application.isPlaying) Destroy(existing.gameObject);
+                    else DestroyImmediate(existing.gameObject);
+                }
+            }
+
             totalSnappedCount = 0;
             currentStepIndex = 0;
             isAssemblyCompleted = false;
@@ -470,17 +482,72 @@ namespace VRRangeAcademy.Assembly
             PlaySound(completionChimeClip, 1.2f);
 
             if (panelCompletion != null) panelCompletion.SetActive(true);
+            var curW = availableWeapons[currentWeaponIndex];
             if (txtCompletionTitle != null)
             {
-                var curW = availableWeapons[currentWeaponIndex];
                 txtCompletionTitle.text = $"[!] ENSAMBLAJE DE {curW.weaponName.ToUpper()} COMPLETADO\nAcceso al Polígono de Tiro Desbloqueado";
             }
+
+            // Desbloquear el Polígono Integrado y equipar arma funcional
+            if (Shooting.ShootingRangeManager.Instance != null)
+            {
+                Shooting.ShootingRangeManager.Instance.UnlockRange(curW.weaponName);
+            }
+
+            EquipFunctionalWeaponToPlayer(curW);
+        }
+
+        private void EquipFunctionalWeaponToPlayer(WeaponData w)
+        {
+            var cam = Camera.main;
+            if (cam == null) return;
+
+            var existing = cam.GetComponentInChildren<Shooting.WeaponShootingController>();
+            if (existing != null) Destroy(existing.gameObject);
+
+            var prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(w.fbxPath);
+            if (prefab == null) return;
+
+            var gunGo = Instantiate(prefab, cam.transform);
+            gunGo.name = "Equipped_" + w.weaponId;
+            gunGo.transform.localPosition = new Vector3(0.24f, -0.22f, 0.45f);
+            gunGo.transform.localRotation = Quaternion.identity;
+            gunGo.transform.localScale = Vector3.one * (w.modelScale * 0.70f);
+
+            foreach (var col in gunGo.GetComponentsInChildren<Collider>()) Destroy(col);
+            foreach (var rb in gunGo.GetComponentsInChildren<Rigidbody>()) Destroy(rb);
+            foreach (var mr in gunGo.GetComponentsInChildren<MeshRenderer>())
+            {
+                if (gunMaterial != null) mr.sharedMaterial = gunMaterial;
+            }
+
+            var shootCtrl = gunGo.AddComponent<Shooting.WeaponShootingController>();
+            int cap = w.weaponId == "M1911" ? 7 : (w.weaponId == "UZI" ? 25 : 30);
+            float rate = w.weaponId == "UZI" ? 0.10f : (w.weaponId == "M4A1" ? 0.12f : (w.weaponId == "AK74" ? 0.14f : 0.20f));
+            shootCtrl.SetupWeapon(w.weaponId, w.weaponName, w.caliber, cap, 50f, rate);
         }
 
         public void OnProceedToShootingRange()
         {
             PlaySound(snapClip, 1.0f);
-            SceneManager.LoadScene(shootingRangeSceneName);
+            if (panelCompletion != null) panelCompletion.SetActive(false);
+
+            // Teleportar al jugador al Puesto B (carril central X=4.6, mirar hacia Z+)
+            // Puesto B apunta directo a Diana1 circular (5m); el jugador puede moverse a A o C para las otras dianas
+            var player = FindAnyObjectByType<AssemblyPlayerController>();
+            if (player != null)
+            {
+                var cc = player.GetComponent<CharacterController>();
+                if (cc != null) cc.enabled = false;
+                player.transform.position = new Vector3(4.6f, 0f, 0.5f);
+                player.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
+                if (cc != null) cc.enabled = true;
+            }
+
+            // Cambiar la cámara para mirar hacia el polígono (Z positivo = hacia las dianas)
+            var cam = Camera.main;
+            if (cam != null)
+                cam.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
         }
 
         public void ResetAssembly()
