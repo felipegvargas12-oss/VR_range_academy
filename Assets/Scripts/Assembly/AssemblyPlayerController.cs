@@ -62,10 +62,44 @@ namespace VRRangeAcademy.Assembly
         private void Update()
         {
             HandleCursorToggle();
+            HandleZoneShortcuts();
             HandleMouseLook();
             HandleMovement();
             HandleInteraction();
             UpdateHeldPiecePosition();
+            CheckShootingRangeZone();
+        }
+
+        private void HandleZoneShortcuts()
+        {
+            if (Keyboard.current != null && Keyboard.current.tKey.wasPressedThisFrame)
+            {
+                var mgr = Object.FindAnyObjectByType<WeaponAssemblyManager>();
+                if (mgr != null)
+                {
+                    if (transform.position.x < 1.6f)
+                    {
+                        mgr.OnProceedToShootingRange();
+                    }
+                    else
+                    {
+                        mgr.OnReturnToWorkbench();
+                    }
+                }
+            }
+        }
+
+        private void CheckShootingRangeZone()
+        {
+            // Si el jugador entra al polígono (X > 1.6), asegurarse de equipar el arma funcional
+            if (transform.position.x > 1.6f)
+            {
+                var mgr = Object.FindAnyObjectByType<WeaponAssemblyManager>();
+                if (mgr != null)
+                {
+                    mgr.EquipActiveWeapon();
+                }
+            }
         }
 
         private void HandleCursorToggle()
@@ -167,12 +201,21 @@ namespace VRRangeAcademy.Assembly
             {
                 if (heldPiece == null)
                 {
-                    // Agarrar la pieza a la que apuntamos
+                    // 1. Agarrar la pieza a la que apuntamos
                     if (hoveredPiece != null)
                     {
                         heldPiece = hoveredPiece;
                         dragPlane = new Plane(-playerCamera.transform.forward, heldPiece.transform.position);
                         heldPiece.Grab(rightHandAnchor != null ? rightHandAnchor : playerCamera.transform);
+                    }
+                    // 2. Si no hay pieza, interactuar con botones de interfaz en espacio 3D
+                    else if (Physics.Raycast(ray, out RaycastHit uiHit, maxInteractDistance, ~0))
+                    {
+                        var btn = uiHit.collider.GetComponentInParent<UnityEngine.UI.Button>();
+                        if (btn != null && btn.interactable)
+                        {
+                            btn.onClick.Invoke();
+                        }
                     }
                 }
                 else
@@ -284,8 +327,8 @@ namespace VRRangeAcademy.Assembly
 
             // 3. Barra de ayuda inferior para teclado y ratón
             GUI.skin.box.fontSize = 13;
-            string controlsText = "[W,A,S,D] Moverse | [Ratón] Mirar | [Clic Izquierdo / E] Agarrar / Soltar Pieza | [Shift] Correr | [Tab] Alternar Cursor";
-            GUI.Box(new Rect(Screen.width * 0.5f - 390f, Screen.height - 40f, 780f, 30f), controlsText);
+            string controlsText = "[W,A,S,D] Moverse | [Ratón] Mirar | [Clic / E] Agarrar / Pulsar Botones | [T] Alternar Taller/Polígono | [Tab] Cursor";
+            GUI.Box(new Rect(Screen.width * 0.5f - 420f, Screen.height - 40f, 840f, 30f), controlsText);
         }
     }
 }

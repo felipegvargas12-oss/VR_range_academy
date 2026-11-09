@@ -60,6 +60,7 @@ namespace VRRangeAcademy.Assembly
         [SerializeField] private TextMeshProUGUI txtControlsHint;
         [SerializeField] private Button btnPrevWeapon;
         [SerializeField] private Button btnNextWeapon;
+        [SerializeField] private Button btnDirectToRange;
         [SerializeField] private GameObject panelCompletion;
         [SerializeField] private TextMeshProUGUI txtCompletionTitle;
         [SerializeField] private Button btnProceedToShootingRange;
@@ -130,6 +131,7 @@ namespace VRRangeAcademy.Assembly
         {
             if (btnPrevWeapon != null) btnPrevWeapon.onClick.AddListener(OnPrevWeaponClicked);
             if (btnNextWeapon != null) btnNextWeapon.onClick.AddListener(OnNextWeaponClicked);
+            if (btnDirectToRange != null) btnDirectToRange.onClick.AddListener(OnProceedToShootingRange);
             if (btnProceedToShootingRange != null) btnProceedToShootingRange.onClick.AddListener(OnProceedToShootingRange);
             if (btnResetAssembly != null) btnResetAssembly.onClick.AddListener(ResetAssembly);
         }
@@ -497,7 +499,24 @@ namespace VRRangeAcademy.Assembly
             EquipFunctionalWeaponToPlayer(curW);
         }
 
-        private void EquipFunctionalWeaponToPlayer(WeaponData w)
+        public void EquipActiveWeapon()
+        {
+            if (availableWeapons != null && currentWeaponIndex >= 0 && currentWeaponIndex < availableWeapons.Count)
+            {
+                var curW = availableWeapons[currentWeaponIndex];
+                var cam = Camera.main;
+                if (cam != null)
+                {
+                    var existing = cam.transform.Find("Equipped_" + curW.weaponId);
+                    if (existing == null)
+                    {
+                        EquipFunctionalWeaponToPlayer(curW);
+                    }
+                }
+            }
+        }
+
+        public void EquipFunctionalWeaponToPlayer(WeaponData w)
         {
             var cam = Camera.main;
             if (cam == null) return;
@@ -532,8 +551,16 @@ namespace VRRangeAcademy.Assembly
             PlaySound(snapClip, 1.0f);
             if (panelCompletion != null) panelCompletion.SetActive(false);
 
-            // Teleportar al jugador al Puesto B (carril central X=4.6, mirar hacia Z+)
-            // Puesto B apunta directo a Diana1 circular (5m); el jugador puede moverse a A o C para las otras dianas
+            // Asegurar que el arma activa esté equipada en el jugador
+            EquipActiveWeapon();
+
+            // Desbloquear el polígono de tiro y semáforo si no lo estaba
+            if (Shooting.ShootingRangeManager.Instance != null && availableWeapons != null && currentWeaponIndex < availableWeapons.Count)
+            {
+                Shooting.ShootingRangeManager.Instance.UnlockRange(availableWeapons[currentWeaponIndex].weaponName);
+            }
+
+            // Teleportar al jugador al Puesto B (carril central X=4.6, Z=0.5, mirar hacia Z+)
             var player = FindAnyObjectByType<AssemblyPlayerController>();
             if (player != null)
             {
@@ -544,10 +571,31 @@ namespace VRRangeAcademy.Assembly
                 if (cc != null) cc.enabled = true;
             }
 
-            // Cambiar la cámara para mirar hacia el polígono (Z positivo = hacia las dianas)
+            // Mirar hacia las dianas (+Z)
             var cam = Camera.main;
             if (cam != null)
                 cam.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
+        }
+
+        public void OnReturnToWorkbench()
+        {
+            PlaySound(snapClip, 1.0f);
+
+            // Teleportar al jugador frente al Banco de Trabajo de Ensamble (X=0, Z=0)
+            var player = FindAnyObjectByType<AssemblyPlayerController>();
+            if (player != null)
+            {
+                var cc = player.GetComponent<CharacterController>();
+                if (cc != null) cc.enabled = false;
+                player.transform.position = new Vector3(0f, 0f, 0f);
+                player.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
+                if (cc != null) cc.enabled = true;
+            }
+
+            // Mirar ligeramente inclinado hacia el banco de trabajo
+            var cam = Camera.main;
+            if (cam != null)
+                cam.transform.rotation = Quaternion.Euler(15f, 0f, 0f);
         }
 
         public void ResetAssembly()

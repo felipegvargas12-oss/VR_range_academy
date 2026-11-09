@@ -151,10 +151,13 @@ namespace VRRangeAcademy.Assembly
 
             if (rb != null)
             {
+                if (!rb.isKinematic)
+                {
+                    rb.linearVelocity = Vector3.zero;
+                    rb.angularVelocity = Vector3.zero;
+                }
                 rb.isKinematic = true;
                 rb.useGravity = false;
-                rb.linearVelocity = Vector3.zero;
-                rb.angularVelocity = Vector3.zero;
             }
 
             if (targetSocket != null)
@@ -190,10 +193,13 @@ namespace VRRangeAcademy.Assembly
 
             if (rb != null)
             {
+                if (!rb.isKinematic)
+                {
+                    rb.linearVelocity = Vector3.zero;
+                    rb.angularVelocity = Vector3.zero;
+                }
                 rb.isKinematic = true;
                 rb.useGravity = false;
-                rb.linearVelocity = Vector3.zero;
-                rb.angularVelocity = Vector3.zero;
             }
         }
 

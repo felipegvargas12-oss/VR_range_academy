@@ -70,7 +70,8 @@ namespace VRRangeAcademy.Editor
             Light rangeBeaconLight;
             TextMeshProUGUI txtScoreboard;
             TextMeshProUGUI txtHitToast;
-            BuildIntegratedShootingGallery(envRoot, matFloor, matWall, matProps, out rangeDoor, out rangeBeaconLight, out txtScoreboard, out txtHitToast);
+            Button btnBackToWorkshop;
+            BuildIntegratedShootingGallery(envRoot, matFloor, matWall, matProps, out rangeDoor, out rangeBeaconLight, out txtScoreboard, out txtHitToast, out btnBackToWorkshop);
 
             // Manager del Polígono de Tiro
             var rangeMgrGo = new GameObject("ShootingRangeManager");
@@ -89,6 +90,7 @@ namespace VRRangeAcademy.Editor
 
             // Configurar campos serializados del manager
             ConfigureManager(manager, piecesContainer.transform, holoContainer.transform, arrowObj, hudCanvas, matGuns, matHolo, matSocketGlow);
+            if (btnBackToWorkshop != null) btnBackToWorkshop.onClick.AddListener(manager.OnReturnToWorkbench);
 
             // 11. Guardar la escena y agregar a Build Settings
             EditorSceneManager.SaveScene(scene, SCENE_PATH);
@@ -198,29 +200,31 @@ namespace VRRangeAcademy.Editor
             var propsFbx = "Assets/Defensive_props/models/Defensive_props.fbx";
             var weaponsRoot = "Assets/Low Poly Weapons VOL.1/Models/";
 
-            // 1. Armeros en la pared frontal del taller
-            InstantiateWeaponOrnament(weaponsRoot + "AK74.fbx", new Vector3(-4.5f, 2.2f, 5.38f), Quaternion.Euler(0f, 180f, 0f), 1.2f, matGuns, root.transform);
-            InstantiateWeaponOrnament(weaponsRoot + "M4_8.fbx", new Vector3(-3.3f, 2.2f, 5.38f), Quaternion.Euler(0f, 180f, 0f), 1.2f, matGuns, root.transform);
-            InstantiateWeaponOrnament(weaponsRoot + "Bennelli_M4.fbx", new Vector3(-2.1f, 2.2f, 5.38f), Quaternion.Euler(0f, 180f, 0f), 1.2f, matGuns, root.transform);
-            InstantiateWeaponOrnament(weaponsRoot + "M107.fbx", new Vector3(-0.9f, 2.2f, 5.38f), Quaternion.Euler(0f, 180f, 0f), 1.1f, matGuns, root.transform);
-
-            // Tablero perforado de armero
+            // 1. Armeros en la pared frontal del taller (Z=5.50, cara interna Z=5.40m)
+            // Tablero perforado de armero (pegboard) adosado a la pared frontal
             var pegboard = GameObject.CreatePrimitive(PrimitiveType.Cube);
             pegboard.name = "Wall_Gun_Pegboard";
             pegboard.transform.SetParent(root.transform);
-            pegboard.transform.position = new Vector3(-2.7f, 2.2f, 5.42f);
+            pegboard.transform.position = new Vector3(-2.7f, 2.2f, 5.375f);
             pegboard.transform.localScale = new Vector3(4.8f, 1.4f, 0.05f);
             var matWood = CreateMaterial("Mat_Pegboard_Wood", new Color(0.35f, 0.25f, 0.16f), 0.2f, 0f);
             pegboard.GetComponent<MeshRenderer>().sharedMaterial = matWood;
 
-            // 2. Banco auxiliar frontal en el taller
-            InstantiateMeshProp(propsFbx, "workbench", new Vector3(-5.2f, 0f, 4.8f), Quaternion.Euler(0f, 90f, 0f), new Vector3(1.2f, 1.05f, 1.05f), matProps, root.transform);
+            // Armas montadas horizontalmente en el pegboard (rotación Y=90° para que queden paralelas a la pared)
+            // Fila superior (Y = 2.45m, Z = 5.31m): AK-74 y M4A1
+            InstantiateWeaponOrnament(weaponsRoot + "AK74.fbx", new Vector3(-3.8f, 2.45f, 5.31f), Quaternion.Euler(0f, 90f, 0f), 1.0f, matGuns, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "M4_8.fbx", new Vector3(-1.6f, 2.45f, 5.31f), Quaternion.Euler(0f, 90f, 0f), 1.0f, matGuns, root.transform);
 
-            // Props en banco izquierdo: Consola electrónica, caja de herramientas, canister y granadas
-            InstantiateMeshProp(propsFbx, "electronics1", new Vector3(-5.2f, 1.05f, 4.8f), Quaternion.identity, Vector3.one * 0.9f, matProps, root.transform);
-            InstantiateMeshProp(propsFbx, "ammo_box", new Vector3(-5.8f, 1.05f, 4.8f), Quaternion.Euler(0f, 25f, 0f), Vector3.one * 0.9f, matProps, root.transform);
-            InstantiateWeaponOrnament(weaponsRoot + "RGD-5.fbx", new Vector3(-4.6f, 1.05f, 4.8f), Quaternion.identity, 1.3f, matGuns, root.transform);
-            InstantiateWeaponOrnament(weaponsRoot + "Smoke.fbx", new Vector3(-4.4f, 1.05f, 4.7f), Quaternion.Euler(0f, 30f, 0f), 1.3f, matGuns, root.transform);
+            // Fila inferior (Y = 1.90m, Z = 5.31m): Benelli M4 y Barrett M107
+            InstantiateWeaponOrnament(weaponsRoot + "Bennelli_M4.fbx", new Vector3(-3.8f, 1.90f, 5.31f), Quaternion.Euler(0f, 90f, 0f), 0.95f, matGuns, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "M107.fbx", new Vector3(-1.6f, 1.90f, 5.31f), Quaternion.Euler(0f, 90f, 0f), 0.85f, matGuns, root.transform);
+
+            // 2. Banco auxiliar frontal en el taller (separado de la pared Z=5.40m)
+            InstantiateMeshProp(propsFbx, "workbench", new Vector3(-5.2f, 0f, 4.4f), Quaternion.Euler(0f, 90f, 0f), new Vector3(1.2f, 1.05f, 1.05f), matProps, root.transform);
+            InstantiateMeshProp(propsFbx, "electronics1", new Vector3(-5.2f, 1.05f, 4.4f), Quaternion.identity, Vector3.one * 0.9f, matProps, root.transform);
+            InstantiateMeshProp(propsFbx, "ammo_box", new Vector3(-5.8f, 1.05f, 4.4f), Quaternion.Euler(0f, 25f, 0f), Vector3.one * 0.9f, matProps, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "RGD-5.fbx", new Vector3(-4.6f, 1.05f, 4.4f), Quaternion.identity, 1.3f, matGuns, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "Smoke.fbx", new Vector3(-4.4f, 1.05f, 4.3f), Quaternion.Euler(0f, 30f, 0f), 1.3f, matGuns, root.transform);
 
             // Props en banco auxiliar trasero: Osciloscopio, cajas y miras tácticas ópticas
             InstantiateMeshProp(propsFbx, "workbench", new Vector3(-3.5f, 0f, -3.8f), Quaternion.Euler(0f, 90f, 0f), new Vector3(1.2f, 1.05f, 1.05f), matProps, root.transform);
@@ -239,9 +243,17 @@ namespace VRRangeAcademy.Editor
             InstantiateMeshProp(propsFbx, "howitzer_shell", new Vector3(-4.2f, 0f, 3.8f), Quaternion.identity, Vector3.one * 1.2f, matProps, root.transform);
             InstantiateMeshProp(propsFbx, "Antitank_hedgehog", new Vector3(-5.5f, 0f, -3.8f), Quaternion.Euler(0f, 35f, 0f), Vector3.one * 1.0f, matProps, root.transform);
 
-            // 4. Pared Izquierda: Tablero con Lanzacohetes y Ametralladora ligera
-            InstantiateWeaponOrnament(weaponsRoot + "RPG7.fbx", new Vector3(-6.88f, 2.3f, 1.0f), Quaternion.Euler(0f, 90f, 0f), 1.2f, matGuns, root.transform);
-            InstantiateWeaponOrnament(weaponsRoot + "M249.fbx", new Vector3(-6.88f, 1.7f, 1.0f), Quaternion.Euler(0f, 90f, 0f), 1.1f, matGuns, root.transform);
+            // 4. Pared Izquierda: Tablero perforado con Lanzacohetes y Ametralladora ligera (X=-7.0m, cara interna X=-6.90m)
+            var pegboardLeft = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            pegboardLeft.name = "Wall_Gun_Pegboard_Left";
+            pegboardLeft.transform.SetParent(root.transform);
+            pegboardLeft.transform.position = new Vector3(-6.875f, 2.0f, 1.0f);
+            pegboardLeft.transform.localScale = new Vector3(0.05f, 1.4f, 2.6f);
+            pegboardLeft.GetComponent<MeshRenderer>().sharedMaterial = matWood;
+
+            // Armas adosadas a la pared izquierda con rotación 0° (orientadas a lo largo de Z para no traspasar)
+            InstantiateWeaponOrnament(weaponsRoot + "RPG7.fbx", new Vector3(-6.81f, 2.30f, 1.0f), Quaternion.Euler(0f, 0f, 0f), 0.95f, matGuns, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "M249.fbx", new Vector3(-6.81f, 1.70f, 1.0f), Quaternion.Euler(0f, 0f, 0f), 0.90f, matGuns, root.transform);
 
             // 5. Rincón Trasero Izquierdo (Ametralladora M2 .50cal montada en trípode, nido de sacos terreros y mortero)
             InstantiateWeaponOrnament(weaponsRoot + "M2_50cal.fbx", new Vector3(-5.6f, 0f, -1.8f), Quaternion.Euler(0f, 135f, 0f), 1.0f, matGuns, root.transform);
@@ -249,12 +261,12 @@ namespace VRRangeAcademy.Editor
             InstantiateMeshProp(propsFbx, "ammo_box", new Vector3(-4.8f, 0f, -2.4f), Quaternion.identity, Vector3.one * 1.2f, matProps, root.transform);
             InstantiateMeshProp(propsFbx, "mortar.001", new Vector3(-5.0f, 0f, -3.0f), Quaternion.Euler(0f, 30f, 0f), Vector3.one * 1.1f, matProps, root.transform);
 
-            // 6. Pared Trasera (Armero auxiliar con puerta blindada)
+            // 6. Pared Trasera (Armero auxiliar con puerta blindada Z=-5.40m)
             var doorFrame = GameObject.CreatePrimitive(PrimitiveType.Cube);
             doorFrame.name = "Armory_Security_Door";
             doorFrame.transform.SetParent(root.transform);
-            doorFrame.transform.position = new Vector3(-2.7f, 1.5f, -5.4f);
-            doorFrame.transform.localScale = new Vector3(1.6f, 3.0f, 0.15f);
+            doorFrame.transform.position = new Vector3(-2.7f, 1.5f, -5.35f);
+            doorFrame.transform.localScale = new Vector3(1.6f, 3.0f, 0.08f);
             var matSteel = CreateMaterial("Mat_Armory_Steel", new Color(0.18f, 0.2f, 0.22f), 0.7f, 0.8f);
             doorFrame.GetComponent<MeshRenderer>().sharedMaterial = matSteel;
         }
@@ -355,7 +367,10 @@ namespace VRRangeAcademy.Editor
             outline.effectDistance = new Vector2(2f, 2f);
 
             // Título Principal
-            CreateText(hudGo.transform, "Title", "BANCO DE ANATOMIA TECNICA", 24, new Vector2(0f, 195f), new Vector2(950f, 35f), FontStyles.Bold, new Color(0f, 0.9f, 1f));
+            CreateText(hudGo.transform, "Title", "BANCO DE ANATOMIA TECNICA", 24, new Vector2(-120f, 195f), new Vector2(680f, 35f), FontStyles.Bold, new Color(0f, 0.9f, 1f));
+
+            // Acceso Rápido al Polígono de Tiro (Siempre disponible con tecla T o clic)
+            CreateButton(hudGo.transform, "Btn_DirectToRange", "Ir al Polígono [T] >", new Vector2(360f, 195f), new Vector2(190f, 36f), new Color(0.1f, 0.65f, 0.35f));
 
             // Barra de Selección de Armas
             CreateButton(hudGo.transform, "Btn_PrevWeapon", "< Anterior", new Vector2(-360f, 145f), new Vector2(160f, 40f), new Color(0.12f, 0.28f, 0.42f));
@@ -413,6 +428,10 @@ namespace VRRangeAcademy.Editor
             var rt = go.GetComponent<RectTransform>();
             rt.anchoredPosition = pos;
             rt.sizeDelta = size;
+
+            // BoxCollider para permitir interacción directa con raycast FPS
+            var col = go.AddComponent<BoxCollider>();
+            col.size = new Vector3(size.x, size.y, 10f);
             return tmp;
         }
 
@@ -433,6 +452,10 @@ namespace VRRangeAcademy.Editor
             var rt = go.GetComponent<RectTransform>();
             rt.anchoredPosition = pos;
             rt.sizeDelta = size;
+
+            // BoxCollider para permitir interacción directa con raycast FPS
+            var col = go.AddComponent<BoxCollider>();
+            col.size = new Vector3(size.x, size.y, 10f);
 
             var txtGo = new GameObject("Text");
             txtGo.transform.SetParent(go.transform, false);
@@ -547,6 +570,8 @@ namespace VRRangeAcademy.Editor
 
             so.FindProperty("btnPrevWeapon").objectReferenceValue = hudCanvas.transform.Find("Btn_PrevWeapon").GetComponent<Button>();
             so.FindProperty("btnNextWeapon").objectReferenceValue = hudCanvas.transform.Find("Btn_NextWeapon").GetComponent<Button>();
+            var directBtn = hudCanvas.transform.Find("Btn_DirectToRange");
+            if (directBtn != null) so.FindProperty("btnDirectToRange").objectReferenceValue = directBtn.GetComponent<Button>();
 
             var compPanel = hudCanvas.transform.Find("Panel_Completion").gameObject;
             so.FindProperty("panelCompletion").objectReferenceValue = compPanel;
@@ -571,7 +596,7 @@ namespace VRRangeAcademy.Editor
             so.ApplyModifiedProperties();
         }
 
-        private static void BuildIntegratedShootingGallery(GameObject root, Material matFloor, Material matWall, Material matProps, out Transform doorTrans, out Light beaconLight, out TextMeshProUGUI txtScoreboard, out TextMeshProUGUI txtHitToast)
+        private static void BuildIntegratedShootingGallery(GameObject root, Material matFloor, Material matWall, Material matProps, out Transform doorTrans, out Light beaconLight, out TextMeshProUGUI txtScoreboard, out TextMeshProUGUI txtHitToast, out Button btnBack)
         {
             var rangeRoot = new GameObject("--- SHOOTING GALLERY (POLIGONO INTEGRADO) ---");
             rangeRoot.transform.SetParent(root.transform, false);
@@ -647,32 +672,66 @@ namespace VRRangeAcademy.Editor
             glassWindow.transform.localScale = new Vector3(0.06f, 2.8f, 4.0f);
             glassWindow.GetComponent<MeshRenderer>().sharedMaterial = matGlass;
 
-            // Marco de compuerta de seguridad (en Z=0.5m)
-            var doorFrame = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            doorFrame.name = "Range_Door_Frame";
-            doorFrame.transform.SetParent(rangeRoot.transform, false);
-            doorFrame.transform.position = new Vector3(1.6f, 1.5f, 0.5f);
-            doorFrame.transform.localScale = new Vector3(0.22f, 3.0f, 1.8f);
-            doorFrame.GetComponent<MeshRenderer>().sharedMaterial = matSteel;
+            // 6. Marco de compuerta de seguridad HUECO y transitable (en X=1.6m, Z=0.5m)
+            var frameRoot = new GameObject("Range_Door_Frame");
+            frameRoot.transform.SetParent(rangeRoot.transform, false);
 
-            // Compuerta corrediza blindada
+            // Poste izquierdo (Z = -0.42f)
+            var postL = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            postL.name = "Door_Post_Left";
+            postL.transform.SetParent(frameRoot.transform, false);
+            postL.transform.position = new Vector3(1.6f, 1.5f, -0.42f);
+            postL.transform.localScale = new Vector3(0.24f, 3.0f, 0.16f);
+            postL.GetComponent<MeshRenderer>().sharedMaterial = matSteel;
+
+            // Poste derecho (Z = 1.42f)
+            var postR = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            postR.name = "Door_Post_Right";
+            postR.transform.SetParent(frameRoot.transform, false);
+            postR.transform.position = new Vector3(1.6f, 1.5f, 1.42f);
+            postR.transform.localScale = new Vector3(0.24f, 3.0f, 0.16f);
+            postR.GetComponent<MeshRenderer>().sharedMaterial = matSteel;
+
+            // Dintel superior (Y = 2.90f)
+            var lintel = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            lintel.name = "Door_Lintel_Top";
+            lintel.transform.SetParent(frameRoot.transform, false);
+            lintel.transform.position = new Vector3(1.6f, 2.90f, 0.5f);
+            lintel.transform.localScale = new Vector3(0.24f, 0.35f, 2.0f);
+            lintel.GetComponent<MeshRenderer>().sharedMaterial = matSteel;
+
+            // Cartel luminoso indicador sobre el acceso
+            BuildDistanceLabel(frameRoot.transform, new Vector3(1.58f, 2.65f, 0.5f), "POLÍGONO DE TIRO >>>");
+
+            // Compuerta corrediza blindada: posicionada abierta a un lado y SIN collider físico bloqueante
             var doorObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
             doorObj.name = "Range_Security_Gate";
             doorObj.transform.SetParent(rangeRoot.transform, false);
-            doorObj.transform.position = new Vector3(1.6f, 1.4f, 0.5f);
-            doorObj.transform.localScale = new Vector3(0.14f, 2.7f, 1.6f);
+            doorObj.transform.position = new Vector3(1.6f, 1.4f, 2.0f); // Abierta hacia Z+
+            doorObj.transform.localScale = new Vector3(0.12f, 2.6f, 1.2f);
             doorObj.GetComponent<MeshRenderer>().sharedMaterial = matSteel;
+            // Remover collider para garantizar paso 100% libre y transitable al caminar
+            Object.DestroyImmediate(doorObj.GetComponent<Collider>());
             doorTrans = doorObj.transform;
 
-            // Baliza de acceso LED sobre la puerta
+            // Baliza de acceso LED sobre la puerta (Verde: acceso autorizado)
             var beaconGo = new GameObject("Range_Access_Beacon");
             beaconGo.transform.SetParent(rangeRoot.transform, false);
-            beaconGo.transform.position = new Vector3(1.6f, 3.05f, 0.5f);
+            beaconGo.transform.position = new Vector3(1.6f, 3.15f, 0.5f);
             beaconLight = beaconGo.AddComponent<Light>();
             beaconLight.type = LightType.Point;
-            beaconLight.color = Color.red;
-            beaconLight.intensity = 2.0f;
-            beaconLight.range = 4.0f;
+            beaconLight.color = new Color(0.1f, 1.0f, 0.4f);
+            beaconLight.intensity = 3.0f;
+            beaconLight.range = 5.0f;
+
+            // Trigger de detección de entrada (equipa el arma automáticamente al cruzar la puerta)
+            var triggerGo = new GameObject("Range_Entry_Trigger");
+            triggerGo.transform.SetParent(rangeRoot.transform, false);
+            triggerGo.transform.position = new Vector3(1.6f, 1.5f, 0.5f);
+            var triggerCol = triggerGo.AddComponent<BoxCollider>();
+            triggerCol.isTrigger = true;
+            triggerCol.size = new Vector3(1.4f, 3.0f, 1.8f);
+            triggerGo.AddComponent<VRRangeAcademy.Shooting.RangeEntryTrigger>();
 
             // 6. Tres Puestos de Tiro independientes (carriles A/B/C) — se crean via BuildShootingBooth más abajo
 
@@ -751,10 +810,10 @@ namespace VRRangeAcademy.Editor
             }
 
             // 9. Marcador Digital LED (Scoreboard HUD)
-            BuildRangeScoreboard(rangeRoot.transform, new Vector3(2.65f, 1.85f, 0.9f), Quaternion.Euler(0f, -90f, 0f), out txtScoreboard, out txtHitToast);
+            BuildRangeScoreboard(rangeRoot.transform, new Vector3(2.65f, 1.85f, 0.9f), Quaternion.Euler(0f, -90f, 0f), out txtScoreboard, out txtHitToast, out btnBack);
         }
 
-        private static void BuildRangeScoreboard(Transform parent, Vector3 pos, Quaternion rot, out TextMeshProUGUI txtBoard, out TextMeshProUGUI txtToast)
+        private static void BuildRangeScoreboard(Transform parent, Vector3 pos, Quaternion rot, out TextMeshProUGUI txtBoard, out TextMeshProUGUI txtToast, out Button btnBack)
         {
             var boardGo = new GameObject("Scoreboard_HUD");
             boardGo.transform.SetParent(parent, false);
@@ -788,7 +847,10 @@ namespace VRRangeAcademy.Editor
             txtBoard = CreateText(boardGo.transform, "Txt_Stats", "ESPERANDO VALIDACIÓN DE APRENDIZAJE MECÁNICO", 20, new Vector2(0f, 40f), new Vector2(660f, 180f), FontStyles.Normal, Color.white);
             txtBoard.alignment = TextAlignmentOptions.TopLeft;
 
-            txtToast = CreateText(boardGo.transform, "Txt_HitToast", "", 24, new Vector2(0f, -145f), new Vector2(660f, 45f), FontStyles.Bold, new Color(0.2f, 1f, 0.6f));
+            txtToast = CreateText(boardGo.transform, "Txt_HitToast", "", 24, new Vector2(0f, -115f), new Vector2(660f, 45f), FontStyles.Bold, new Color(0.2f, 1f, 0.6f));
+
+            // Botón de retorno rápido al taller de armería
+            btnBack = CreateButton(boardGo.transform, "Btn_BackToWorkshop", "< Volver al Banco de Armería [T]", new Vector2(0f, -170f), new Vector2(360f, 42f), new Color(0.12f, 0.32f, 0.45f));
         }
 
         private static void BuildShootingBooth(Transform parent, float centerX, Material matSteel, Material matAcoustic, Material matRedLine, string lane)
