@@ -190,7 +190,7 @@ namespace VRRangeAcademy.Editor
         private static void BuildBackgroundProps(GameObject root)
         {
             var propsFbx = "Assets/Defensive_props/models/Defensive_props.fbx";
-            var matProps = AssetDatabase.LoadAssetAtPath<Material>("Assets/Defensive_props/Materials/Mat_Defensive_props_URP.mat");
+            var matProps = AssetDatabase.LoadAssetAtPath<Material>("Assets/Defensive_props/Materials/military prop pack.mat");
             if (matProps == null)
             {
                 matProps = CreateMaterial("Mat_Defensive_props_URP", new Color(0.4f, 0.42f, 0.4f), 0.4f, 0.2f);
@@ -219,7 +219,11 @@ namespace VRRangeAcademy.Editor
             benchRoot.transform.position = new Vector3(0f, 0f, 1.45f);
 
             var propsFbx = "Assets/Defensive_props/models/Defensive_props.fbx";
-            var matProps = AssetDatabase.LoadAssetAtPath<Material>("Assets/Defensive_props/Materials/Mat_Defensive_props_URP.mat");
+            var matProps = AssetDatabase.LoadAssetAtPath<Material>("Assets/Defensive_props/Materials/military prop pack.mat");
+            if (matProps == null)
+            {
+                matProps = CreateMaterial("Mat_Defensive_props_URP", new Color(0.4f, 0.42f, 0.4f), 0.4f, 0.2f);
+            }
 
             // Modelo físico del banco
             var tableObj = InstantiateMeshProp(propsFbx, "workbench", Vector3.zero, Quaternion.identity, new Vector3(1.25f, 1.05f, 1.05f), matProps, benchRoot.transform);
@@ -230,7 +234,7 @@ namespace VRRangeAcademy.Editor
             matObj.transform.SetParent(benchRoot.transform);
             matObj.transform.localPosition = new Vector3(0f, 0.88f, 0.05f);
             matObj.transform.localScale = new Vector3(1.05f, 0.012f, 0.58f);
-            matObj.GetComponent<MeshRenderer>().material = matMat;
+            matObj.GetComponent<MeshRenderer>().sharedMaterial = matMat;
 
             // Borde / marco estético del tapete
             var matBorder = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -240,7 +244,7 @@ namespace VRRangeAcademy.Editor
             matBorder.transform.localScale = new Vector3(0.98f, 0.2f, 0.96f);
             Object.DestroyImmediate(matBorder.GetComponent<Collider>());
             var borderMat = CreateMaterial("Mat_MatBorder", new Color(0.12f, 0.28f, 0.35f), 0.1f, 0.0f);
-            matBorder.GetComponent<MeshRenderer>().material = borderMat;
+            matBorder.GetComponent<MeshRenderer>().sharedMaterial = borderMat;
 
             // Props en la mesa (Caja de herramientas, munición de prueba, destornillador)
             InstantiateMeshProp(propsFbx, "ammo_box", new Vector3(0.58f, 0.88f, 0.15f), Quaternion.Euler(0f, -15f, 0f), Vector3.one * 0.7f, matProps, benchRoot.transform);
@@ -257,7 +261,7 @@ namespace VRRangeAcademy.Editor
             var emitterMat = CreateMaterial("Mat_HoloProjector", new Color(0.08f, 0.22f, 0.32f), 0.8f, 0.6f);
             emitterMat.EnableKeyword("_EMISSION");
             emitterMat.SetColor("_EmissionColor", new Color(0f, 0.6f, 0.9f) * 0.6f);
-            holoEmitter.GetComponent<MeshRenderer>().material = emitterMat;
+            holoEmitter.GetComponent<MeshRenderer>().sharedMaterial = emitterMat;
 
             return benchRoot;
         }
@@ -317,7 +321,7 @@ namespace VRRangeAcademy.Editor
             sphere.transform.localScale = Vector3.one * 0.022f;
             Object.DestroyImmediate(sphere.GetComponent<Collider>());
             var glowMat = CreateHologramMaterial("Mat_SocketGlow", new Color(0f, 1f, 0.8f, 0.35f));
-            sphere.GetComponent<MeshRenderer>().material = glowMat;
+            sphere.GetComponent<MeshRenderer>().sharedMaterial = glowMat;
 
             return go.transform;
         }
@@ -326,10 +330,10 @@ namespace VRRangeAcademy.Editor
         {
             var piecesList = new List<Assembly.AssemblyPiece>();
             var m1911Prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Low Poly Weapons VOL.1/Models/M1911.fbx");
-            var matGun = AssetDatabase.LoadAssetAtPath<Material>("Assets/Low Poly Weapons VOL.1/Materials/Mat_Guns_URP.mat");
+            var matGun = AssetDatabase.LoadAssetAtPath<Material>("Assets/Low Poly Weapons VOL.1/Gun_MAT.mat");
             if (matGun == null)
             {
-                matGun = CreateMaterial("Mat_Guns_URP", new Color(0.2f, 0.22f, 0.23f), 0.7f, 0.3f);
+                matGun = CreateMaterial("Mat_Guns_Fallback", new Color(0.2f, 0.22f, 0.23f), 0.7f, 0.3f);
             }
 
             var piecesParent = new GameObject("--- DISASSEMBLED PIECES (ON TABLE) ---");
@@ -370,18 +374,18 @@ namespace VRRangeAcademy.Editor
                 // Mesh Filter y Renderer
                 var mf = pieceGo.AddComponent<MeshFilter>();
                 var mr = pieceGo.AddComponent<MeshRenderer>();
-                mr.material = matGun;
+                mr.sharedMaterial = matGun;
 
                 // Extraer la malla específica del FBX
                 var mesh = FindSubmesh(m1911Prefab, cfg.Mesh);
                 if (mesh != null) mf.sharedMesh = mesh;
 
-                // BoxCollider o MeshCollider convexo
+                // BoxCollider con tamaño generoso para fácil agarre con ratón o VR
                 var col = pieceGo.AddComponent<BoxCollider>();
                 Vector3 sz = col.size;
-                sz.x = Mathf.Max(sz.x, 0.06f);
-                sz.y = Mathf.Max(sz.y, 0.06f);
-                sz.z = Mathf.Max(sz.z, 0.06f);
+                sz.x = Mathf.Max(sz.x, 0.08f);
+                sz.y = Mathf.Max(sz.y, 0.08f);
+                sz.z = Mathf.Max(sz.z, 0.08f);
                 col.size = sz;
 
                 // Rigidbody
@@ -557,9 +561,15 @@ namespace VRRangeAcademy.Editor
             var rigGo = new GameObject("XR_Assembly_PlayerRig");
             rigGo.transform.position = new Vector3(0f, 0f, 0f);
 
+            // CharacterController para colisiones y movimiento WASD
+            var cc = rigGo.AddComponent<CharacterController>();
+            cc.height = 1.8f;
+            cc.center = new Vector3(0f, 0.9f, 0f);
+            cc.radius = 0.35f;
+
             var camGo = new GameObject("Main Camera");
             camGo.transform.SetParent(rigGo.transform);
-            camGo.transform.localPosition = new Vector3(0f, 1.60f, 0.35f);
+            camGo.transform.localPosition = new Vector3(0f, 1.62f, 0.35f);
             camGo.transform.localRotation = Quaternion.Euler(18f, 0f, 0f); // Looking towards table
 
             var cam = camGo.AddComponent<Camera>();
@@ -572,7 +582,7 @@ namespace VRRangeAcademy.Editor
             var leftHand = CreateControllerVisual(camGo.transform, "LeftHand_OculusTouch", new Vector3(-0.24f, -0.22f, 0.42f), Quaternion.Euler(22f, -15f, -12f), matController);
             var rightHand = CreateControllerVisual(camGo.transform, "RightHand_OculusTouch", new Vector3(0.24f, -0.22f, 0.42f), Quaternion.Euler(22f, 15f, 12f), matController);
 
-            // Controlador híbrido (Desktop + VR)
+            // Controlador híbrido (Desktop WASD + Ratón + VR)
             var controllerComp = rigGo.AddComponent<Assembly.AssemblyPlayerController>();
 
             // Event System si no existe
@@ -599,7 +609,7 @@ namespace VRRangeAcademy.Editor
             handle.transform.SetParent(go.transform, false);
             handle.transform.localPosition = new Vector3(0f, -0.06f, 0f);
             handle.transform.localScale = new Vector3(0.045f, 0.07f, 0.045f);
-            handle.GetComponent<MeshRenderer>().material = mat;
+            handle.GetComponent<MeshRenderer>().sharedMaterial = mat;
             Object.DestroyImmediate(handle.GetComponent<Collider>());
 
             // Aro de seguimiento característico Oculus Quest / Touch
@@ -609,7 +619,7 @@ namespace VRRangeAcademy.Editor
             ring.transform.localPosition = new Vector3(0f, 0.02f, 0.03f);
             ring.transform.localRotation = Quaternion.Euler(45f, 0f, 0f);
             ring.transform.localScale = new Vector3(0.11f, 0.012f, 0.11f);
-            ring.GetComponent<MeshRenderer>().material = mat;
+            ring.GetComponent<MeshRenderer>().sharedMaterial = mat;
             Object.DestroyImmediate(ring.GetComponent<Collider>());
 
             // Botón Grip lateral
@@ -619,7 +629,7 @@ namespace VRRangeAcademy.Editor
             grip.transform.localPosition = new Vector3(0f, -0.04f, -0.025f);
             grip.transform.localScale = new Vector3(0.02f, 0.035f, 0.02f);
             var matBlack = CreateMaterial("Mat_TouchButtons", new Color(0.1f, 0.1f, 0.12f), 0.5f, 0.1f);
-            grip.GetComponent<MeshRenderer>().material = matBlack;
+            grip.GetComponent<MeshRenderer>().sharedMaterial = matBlack;
             Object.DestroyImmediate(grip.GetComponent<Collider>());
 
             return go;
@@ -681,7 +691,11 @@ namespace VRRangeAcademy.Editor
                 var mf = go.AddComponent<MeshFilter>();
                 mf.sharedMesh = foundMesh;
                 var mr = go.AddComponent<MeshRenderer>();
-                if (mat != null) mr.material = mat;
+                if (mat == null)
+                {
+                    mat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Defensive_props/Materials/military prop pack.mat");
+                }
+                mr.sharedMaterial = mat;
             }
 
             return go;
@@ -694,6 +708,7 @@ namespace VRRangeAcademy.Editor
             var mat = new Material(shader);
             mat.name = name;
             mat.color = color;
+            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
             if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", smoothness);
             if (mat.HasProperty("_Metallic")) mat.SetFloat("_Metallic", metallic);
 
@@ -710,6 +725,7 @@ namespace VRRangeAcademy.Editor
             var mat = new Material(shader);
             mat.name = name;
             mat.color = cyanGlow;
+            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", cyanGlow);
 
             // Configurar blend mode transparente
             mat.SetFloat("_Surface", 1); // Transparent

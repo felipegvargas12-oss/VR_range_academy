@@ -1,66 +1,85 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 namespace VRRangeAcademy.Assembly
 {
+    [RequireComponent(typeof(CharacterController))]
     public class AssemblyPlayerController : MonoBehaviour
     {
-        [Header("Referencias de Cámara y Manos")]
+        [Header("Referencias")]
         [SerializeField] private Camera playerCamera;
         [SerializeField] private Transform leftHandAnchor;
         [SerializeField] private Transform rightHandAnchor;
 
-        [Header("Sensibilidad de Ratón (Desktop)")]
-        [SerializeField] private float mouseSensitivity = 2.2f;
-        [SerializeField] private float dragDistance = 0.85f;
-        [SerializeField] private float minPitch = -70f;
+        [Header("Movimiento con Teclado (WASD)")]
+        [SerializeField] private float moveSpeed = 2.4f;
+        [SerializeField] private float sprintMultiplier = 1.5f;
+        [SerializeField] private float gravity = 9.81f;
+
+        [Header("Control de Vista con Ratón")]
+        [SerializeField] private float mouseSensitivity = 1.8f;
+        [SerializeField] private float minPitch = -75f;
         [SerializeField] private float maxPitch = 80f;
 
-        [Header("Agarre y Raycast")]
+        [Header("Mecánica de Agarre (Pickup & Hold)")]
+        [SerializeField] private float maxInteractDistance = 3.5f;
+        [SerializeField] private float holdDistance = 0.65f;
         [SerializeField] private LayerMask interactableLayer = ~0;
-        [SerializeField] private float maxRayDistance = 3.5f;
 
+        [Header("Desktop HUD / Retícula")]
+        [SerializeField] private bool showDesktopHUD = true;
+
+        private CharacterController characterController;
         private float pitch = 15f;
         private float yaw = 0f;
-        private bool isCursorLocked = false;
-        private AssemblyPiece currentlyHeldPiece = null;
+        private bool isCursorLocked = true;
+        private float verticalVelocity = 0f;
+
+        private AssemblyPiece heldPiece = null;
+        private AssemblyPiece hoveredPiece = null;
         private Plane dragPlane;
 
-        private void Start()
+        private void Awake()
         {
+            characterController = GetComponent<CharacterController>();
             if (playerCamera == null)
             {
                 playerCamera = GetComponentInChildren<Camera>();
+                if (playerCamera == null) playerCamera = Camera.main;
             }
 
-            // Inicializar ángulos con la rotación inicial
-            Vector3 euler = transform.eulerAngles;
-            yaw = euler.y;
             if (playerCamera != null)
             {
                 pitch = playerCamera.transform.localEulerAngles.x;
             }
+            yaw = transform.eulerAngles.y;
 
-            // Iniciar cursor desbloqueado para interactuar cómodamente en editor
-            SetCursorLock(false);
+            // Iniciar bloqueado para jugar directamente como en un FPS / VR simulator
+            SetCursorLock(true);
         }
 
         private void Update()
         {
             HandleCursorToggle();
             HandleMouseLook();
-            HandleDesktopInteraction();
+            HandleMovement();
+            HandleInteraction();
+            UpdateHeldPiecePosition();
         }
 
         private void HandleCursorToggle()
         {
-            if (Keyboard.current != null && Keyboard.current.tabKey.wasPressedThisFrame)
+            if (Keyboard.current != null)
             {
-                SetCursorLock(!isCursorLocked);
+                if (Keyboard.current.tabKey.wasPressedThisFrame || Keyboard.current.escapeKey.wasPressedThisFrame)
+                {
+                    SetCursorLock(!isCursorLocked);
+                }
             }
         }
 
-        private void SetCursorLock(bool locked)
+        public void SetCursorLock(bool locked)
         {
             isCursorLocked = locked;
             Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
@@ -69,14 +88,13 @@ namespace VRRangeAcademy.Assembly
 
         private void HandleMouseLook()
         {
-            // Rotar cámara si cursor está bloqueado O si se mantiene clic derecho
-            bool shouldRotate = isCursorLocked || (Mouse.current != null && Mouse.current.rightButton.isPressed);
+            bool shouldLook = isCursorLocked || (Mouse.current != null && Mouse.current.rightButton.isPressed);
 
-            if (shouldRotate && Mouse.current != null)
+            if (shouldLook && Mouse.current != null)
             {
-                Vector2 mouseDelta = Mouse.current.delta.ReadValue();
-                yaw += mouseDelta.x * mouseSensitivity * 0.1f;
-                pitch -= mouseDelta.y * mouseSensitivity * 0.1f;
+                Vector2 delta = Mouse.current.delta.ReadValue();
+                yaw += delta.x * mouseSensitivity * 0.1f;
+                pitch -= delta.y * mouseSensitivity * 0.1f;
                 pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
 
                 transform.rotation = Quaternion.Euler(0f, yaw, 0f);
@@ -87,62 +105,173 @@ namespace VRRangeAcademy.Assembly
             }
         }
 
-        private void HandleDesktopInteraction()
+        private void HandleMovement()
         {
-            if (Mouse.current == null || playerCamera == null) return;
+            Vector2 inputDir = Vector2.zero;
+            bool isSprinting = false;
 
-            // Click izquierdo presionado: Intentar agarrar
-            if (Mouse.current.leftButton.wasPressedThisFrame)
+            if (Keyboard.current != null)
             {
-                Ray ray = isCursorLocked
-                    ? playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f))
-                    : playerCamera.ScreenPointToRay(Mouse.current.position.ReadValue());
+                if (Keyboard.current.wKey.isPressed) inputDir.y += 1f;
+                if (Keyboard.current.sKey.isPressed) inputDir.y -= 1f;
+                if (Keyboard.current.dKey.isPressed) inputDir.x += 1f;
+                if (Keyboard.current.aKey.isPressed) inputDir.x -= 1f;
+                isSprinting = Keyboard.current.leftShiftKey.isPressed;
+            }
 
-                if (Physics.Raycast(ray, out RaycastHit hit, maxRayDistance, interactableLayer))
+            inputDir.Normalize();
+
+            // Dirección relativa a la rotación del jugador
+            Vector3 move = transform.right * inputDir.x + transform.forward * inputDir.y;
+            float currentSpeed = moveSpeed * (isSprinting ? sprintMultiplier : 1.0f);
+
+            // Gravedad básica
+            if (characterController.isGrounded)
+            {
+                verticalVelocity = -0.5f;
+            }
+            else
+            {
+                verticalVelocity -= gravity * Time.deltaTime;
+            }
+
+            Vector3 finalMove = move * currentSpeed + Vector3.up * verticalVelocity;
+            characterController.Move(finalMove * Time.deltaTime);
+        }
+
+        private void HandleInteraction()
+        {
+            if (playerCamera == null) return;
+
+            Ray ray = isCursorLocked
+                ? playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f))
+                : (Mouse.current != null ? playerCamera.ScreenPointToRay(Mouse.current.position.ReadValue()) : default);
+
+            // Detectar si estamos apuntando a una pieza
+            hoveredPiece = null;
+            if (heldPiece == null && Physics.Raycast(ray, out RaycastHit hit, maxInteractDistance, interactableLayer))
+            {
+                var piece = hit.collider.GetComponentInParent<AssemblyPiece>();
+                if (piece != null && !piece.IsSnapped)
                 {
-                    var piece = hit.collider.GetComponentInParent<AssemblyPiece>();
-                    if (piece != null && !piece.IsSnapped)
-                    {
-                        currentlyHeldPiece = piece;
-                        // Crear plano perpendicular a la cámara a la distancia del objeto
-                        dragPlane = new Plane(-playerCamera.transform.forward, hit.point);
-                        piece.Grab(rightHandAnchor != null ? rightHandAnchor : transform);
-                    }
+                    hoveredPiece = piece;
                 }
             }
 
-            // Manteniendo click izquierdo: Arrastrar pieza en el espacio
-            if (Mouse.current.leftButton.isPressed && currentlyHeldPiece != null)
-            {
-                Ray ray = isCursorLocked
-                    ? playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f))
-                    : playerCamera.ScreenPointToRay(Mouse.current.position.ReadValue());
+            // Tecla de acción: Clic Izquierdo o tecla E
+            bool actionPressed = false;
+            if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame) actionPressed = true;
+            if (Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame) actionPressed = true;
 
-                if (dragPlane.Raycast(ray, out float enter))
+            if (actionPressed)
+            {
+                if (heldPiece == null)
                 {
-                    Vector3 targetWorldPos = ray.GetPoint(enter);
-                    // Suavizar posición hacia el punto del rayo
-                    currentlyHeldPiece.SetTargetPositionDirect(targetWorldPos, currentlyHeldPiece.transform.rotation);
+                    // Agarrar la pieza a la que apuntamos
+                    if (hoveredPiece != null)
+                    {
+                        heldPiece = hoveredPiece;
+                        dragPlane = new Plane(-playerCamera.transform.forward, heldPiece.transform.position);
+                        heldPiece.Grab(rightHandAnchor != null ? rightHandAnchor : playerCamera.transform);
+                    }
                 }
                 else
                 {
-                    Vector3 fallbackPos = playerCamera.transform.position + ray.direction * dragDistance;
-                    currentlyHeldPiece.SetTargetPositionDirect(fallbackPos, currentlyHeldPiece.transform.rotation);
-                }
-
-                // Si la pieza se acopló durante el arrastre, liberarla
-                if (currentlyHeldPiece.IsSnapped)
-                {
-                    currentlyHeldPiece = null;
+                    // Soltar pieza actual si se presiona de nuevo
+                    heldPiece.Release();
+                    heldPiece = null;
                 }
             }
 
-            // Click izquierdo soltado: Liberar pieza
-            if (Mouse.current.leftButton.wasReleasedThisFrame && currentlyHeldPiece != null)
+            // Soltar si soltamos el clic mientras arrastramos en modo cursor libre
+            if (!isCursorLocked && Mouse.current != null && Mouse.current.leftButton.wasReleasedThisFrame && heldPiece != null)
             {
-                currentlyHeldPiece.Release();
-                currentlyHeldPiece = null;
+                heldPiece.Release();
+                heldPiece = null;
             }
+        }
+
+        private void UpdateHeldPiecePosition()
+        {
+            if (heldPiece == null || playerCamera == null) return;
+
+            // Si la pieza se acopló en este frame, liberarla automáticamente
+            if (heldPiece.IsSnapped)
+            {
+                heldPiece = null;
+                return;
+            }
+
+            Vector3 targetHoldPos;
+            if (isCursorLocked)
+            {
+                // Sostener justo enfrente del centro de la vista
+                targetHoldPos = playerCamera.transform.position + playerCamera.transform.forward * holdDistance - playerCamera.transform.up * 0.12f;
+            }
+            else
+            {
+                // Seguir el rayo del cursor del ratón
+                Ray ray = playerCamera.ScreenPointToRay(Mouse.current != null ? Mouse.current.position.ReadValue() : Vector2.zero);
+                if (dragPlane.Raycast(ray, out float enter))
+                {
+                    targetHoldPos = ray.GetPoint(enter);
+                }
+                else
+                {
+                    targetHoldPos = playerCamera.transform.position + ray.direction * holdDistance;
+                }
+            }
+
+            // Mover suavemente la pieza hacia la posición sostenida
+            heldPiece.SetTargetPositionDirect(targetHoldPos, heldPiece.transform.rotation);
+        }
+
+        private void OnGUI()
+        {
+            if (!showDesktopHUD) return;
+
+            // 1. Retícula central cuando el cursor está bloqueado
+            if (isCursorLocked)
+            {
+                float centerX = Screen.width * 0.5f;
+                float centerY = Screen.height * 0.5f;
+                float crossSize = 10f;
+                float thickness = 2f;
+
+                Color crossColor = (hoveredPiece != null || heldPiece != null) ? new Color(0f, 1f, 0.7f, 0.9f) : new Color(1f, 1f, 1f, 0.6f);
+
+                GUI.color = crossColor;
+                // Barra horizontal
+                GUI.DrawTexture(new Rect(centerX - crossSize, centerY - thickness * 0.5f, crossSize * 2f, thickness), Texture2D.whiteTexture);
+                // Barra vertical
+                GUI.DrawTexture(new Rect(centerX - thickness * 0.5f, centerY - crossSize, thickness, crossSize * 2f), Texture2D.whiteTexture);
+                GUI.color = Color.white;
+            }
+
+            // 2. Tooltip contextual de acción
+            if (heldPiece != null)
+            {
+                GUI.skin.label.fontSize = 18;
+                GUI.skin.label.fontStyle = FontStyle.Bold;
+                GUI.color = new Color(0.2f, 1f, 0.8f);
+                GUI.Label(new Rect(Screen.width * 0.5f - 250f, Screen.height * 0.5f + 40f, 500f, 35f),
+                    $"Sosteniendo: {heldPiece.displayName} -> ¡Llévala al holograma para encastrarla!", new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter });
+                GUI.color = Color.white;
+            }
+            else if (hoveredPiece != null)
+            {
+                GUI.skin.label.fontSize = 18;
+                GUI.skin.label.fontStyle = FontStyle.Bold;
+                GUI.color = new Color(1f, 0.9f, 0.3f);
+                GUI.Label(new Rect(Screen.width * 0.5f - 250f, Screen.height * 0.5f + 40f, 500f, 35f),
+                    $"[Clic Izquierdo / E] Agarrar {hoveredPiece.displayName}", new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter });
+                GUI.color = Color.white;
+            }
+
+            // 3. Barra de ayuda inferior para teclado y ratón
+            GUI.skin.box.fontSize = 13;
+            string controlsText = "[W,A,S,D] Moverse | [Ratón] Mirar | [Clic Izquierdo / E] Agarrar / Soltar Pieza | [Shift] Correr | [Tab] Alternar Cursor";
+            GUI.Box(new Rect(Screen.width * 0.5f - 390f, Screen.height - 40f, 780f, 30f), controlsText);
         }
     }
 }
