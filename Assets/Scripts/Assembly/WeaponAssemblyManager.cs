@@ -560,13 +560,13 @@ namespace VRRangeAcademy.Assembly
                 Shooting.ShootingRangeManager.Instance.UnlockRange(availableWeapons[currentWeaponIndex].weaponName);
             }
 
-            // Teleportar al jugador al Puesto B (carril central X=4.6, Z=0.5, mirar hacia Z+)
+            // Teleportar al jugador al Puesto B (carril central X=4.6, Z=5.2, frente a las dianas)
             var player = FindAnyObjectByType<AssemblyPlayerController>();
             if (player != null)
             {
                 var cc = player.GetComponent<CharacterController>();
                 if (cc != null) cc.enabled = false;
-                player.transform.position = new Vector3(4.6f, 0f, 0.5f);
+                player.transform.position = new Vector3(4.6f, 0f, 5.2f);
                 player.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
                 if (cc != null) cc.enabled = true;
             }
