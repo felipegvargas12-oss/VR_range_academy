@@ -1459,7 +1459,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "SIGUIENTE \u25B6"
+  m_text: '>'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -2799,7 +2799,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\u2699\uFE0F   CONFIGURACI\xD3N"
+  m_text: Configuracion
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -2936,7 +2936,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\u25C0 ANTERIOR"
+  m_text: <
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -4931,7 +4931,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\U0001F3AE <b>Dispositivo:</b> Meta Quest 3   |   <b>Mandos:</b> Touch Plus (use Gatillo para seleccionar)"
+  m_text: '[VR] <b>Dispositivo:</b> Meta Quest 3   |   <b>Mandos:</b> Touch Plus (use Gatillo para seleccionar)'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -5542,7 +5542,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "<b>Gatillo Index (Trigger):</b>\n  \u21B3 Seleccionar men\xFAs / Disparar arma\n\n<b>Grip (Agarre medio):</b>\n  \u21B3 Sujetar armas, empu\xF1adura y cargadores\n\n<b>Bot\xF3n 'A' (Mando Der) / 'X' (Mando Izq):</b>\n  \u21B3 Men\xFA r\xE1pido / Liberar cerrojo (Slide lock)\n\n<b>Bot\xF3n 'B' / 'Y':</b>\n  \u21B3 Expulsar cargador / Seguro del arma\n\n<b>Thumbstick (Joystick):</b>\n  \u21B3 Desplazamiento y giro suave / por pasos"
+  m_text: "<b>Gatillo Index (Trigger):</b>\n  -> Seleccionar men\xFAs / Disparar arma\n\n<b>Grip (Agarre medio):</b>\n  -> Sujetar armas, empu\xF1adura y cargadores\n\n<b>Bot\xF3n 'A' (Mando Der) / 'X' (Mando Izq):</b>\n  -> Men\xFA r\xE1pido / Liberar cerrojo (Slide lock)\n\n<b>Bot\xF3n 'B' / 'Y':</b>\n  -> Expulsar cargador / Seguro del arma\n\n<b>Thumbstick (Joystick):</b>\n  -> Desplazamiento y giro suave / por pasos"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -5814,7 +5814,9 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\U0001F3AE CONTROLES META QUEST 3\n<size=14><color=#7FC3FF>Touch Plus Controllers</color></size>"
+  m_text: '[VR] CONTROLES META QUEST 3
+
+    <size=14><color=#7FC3FF>Touch Plus Controllers</color></size>'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
