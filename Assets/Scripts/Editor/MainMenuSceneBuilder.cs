@@ -193,6 +193,9 @@ namespace VRRangeAcademy.Editor
                 es.gameObject.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
             }
 
+            // 9. Decorative Props & Ornamental Weapons
+            DecorateWorkshopEnvironment();
+
             // Save Scene
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(
                 UnityEditor.SceneManagement.EditorSceneManager.GetActiveScene());
@@ -404,6 +407,86 @@ namespace VRRangeAcademy.Editor
             rightHand.AddComponent<VRRaycastPointer>();
 
             return cam;
+        }
+
+        private static void DecorateWorkshopEnvironment()
+        {
+            var existingDecor = GameObject.Find("--- DECORATIVE PROPS & WEAPONS (NON-INTERACTIVE) ---");
+            if (existingDecor != null) Object.DestroyImmediate(existingDecor);
+
+            GameObject decorRoot = new GameObject("--- DECORATIVE PROPS & WEAPONS (NON-INTERACTIVE) ---");
+
+            System.Action<GameObject, Vector3, Quaternion, Vector3, bool> spawnProp = (prefab, pos, rot, scale, isWeapon) => {
+                if (prefab == null) return;
+                GameObject inst = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+                inst.transform.parent = decorRoot.transform;
+                inst.transform.position = pos;
+                inst.transform.rotation = rot;
+                inst.transform.localScale = scale;
+
+                // Las armas son estrictamente ornamentales: deshabilitamos colliders y rigidbodies
+                if (isWeapon)
+                {
+                    var colliders = inst.GetComponentsInChildren<Collider>();
+                    foreach (var c in colliders) c.enabled = false;
+                    var rbs = inst.GetComponentsInChildren<Rigidbody>();
+                    foreach (var rb in rbs) Object.DestroyImmediate(rb);
+                }
+            };
+
+            // Prefabs
+            var m1911 = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Low Poly Weapons VOL.1/Prefabs/M1911.prefab");
+            var ak74 = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Low Poly Weapons VOL.1/Prefabs/AK74.prefab");
+            var m4_8 = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Low Poly Weapons VOL.1/Prefabs/M4_8.prefab");
+            var bennelli = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Low Poly Weapons VOL.1/Prefabs/Bennelli_M4.prefab");
+            var uzi = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Low Poly Weapons VOL.1/Prefabs/Uzi.prefab");
+            var m107 = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Low Poly Weapons VOL.1/Prefabs/M107.prefab");
+            var m249 = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Low Poly Weapons VOL.1/Prefabs/M249.prefab");
+            var elcan = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Low Poly Weapons VOL.1/Prefabs/ELCAN.prefab");
+            var flash = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Low Poly Weapons VOL.1/Prefabs/Flash.prefab");
+
+            var ammoBox = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Defensive_props/Prefabs/defence/ammo_box.prefab");
+            var shell = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Defensive_props/Prefabs/defence/Shell_casing.prefab");
+            var electronics = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Defensive_props/Prefabs/electronics/electronics1.prefab");
+            var pallet = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Defensive_props/Prefabs/boxes/pallet.prefab");
+            var box1 = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Defensive_props/Prefabs/boxes/box1.prefab");
+            var box2 = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Defensive_props/Prefabs/boxes/box2.prefab");
+            var canister = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Defensive_props/Prefabs/defence/canister.prefab");
+            var sandbag = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Defensive_props/Prefabs/fortifications/sandbag barricade.prefab");
+
+            var target = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Glowing Rifts/Shooting Target/ShootingTarget.prefab");
+            var dummy = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Blink/Art/NPCs/Stylized/DummyTarget/DummyTarget.prefab");
+
+            // Mesa frontal (Workbench)
+            spawnProp(m1911, new Vector3(-0.18f, 0.91f, 1.35f), Quaternion.Euler(-90f, 35f, 0f), Vector3.one, true);
+            spawnProp(elcan, new Vector3(0.18f, 0.91f, 1.45f), Quaternion.Euler(0, 45f, 0), Vector3.one * 0.9f, true);
+            spawnProp(flash, new Vector3(0.24f, 0.91f, 1.32f), Quaternion.Euler(0, -60f, 0), Vector3.one * 0.9f, true);
+            spawnProp(shell, new Vector3(-0.02f, 0.905f, 1.48f), Quaternion.Euler(0, 15f, 90f), Vector3.one * 0.8f, false);
+            spawnProp(shell, new Vector3(-0.06f, 0.905f, 1.45f), Quaternion.Euler(0, -40f, 90f), Vector3.one * 0.8f, false);
+            spawnProp(ammoBox, new Vector3(0.85f, 0.89f, 1.35f), Quaternion.Euler(0, -15f, 0), Vector3.one * 0.55f, false);
+            spawnProp(electronics, new Vector3(-0.82f, 0.89f, 1.35f), Quaternion.Euler(0, 15f, 0), Vector3.one * 0.65f, false);
+
+            // Armero en la pared trasera (Wall Pegboard)
+            spawnProp(ak74, new Vector3(0f, 2.75f, 4.84f), Quaternion.Euler(0, 90f, 0), Vector3.one, true);
+            spawnProp(m4_8, new Vector3(0f, 2.35f, 4.84f), Quaternion.Euler(0, 90f, 0), Vector3.one, true);
+            spawnProp(bennelli, new Vector3(0f, 1.95f, 4.84f), Quaternion.Euler(0, 90f, 0), Vector3.one, true);
+            spawnProp(uzi, new Vector3(-1.15f, 2.35f, 4.84f), Quaternion.Euler(0, 90f, 0), Vector3.one, true);
+
+            // Mostrador trasero
+            spawnProp(m107, new Vector3(0.85f, 1.01f, 4.35f), Quaternion.Euler(0, -25f, 0), Vector3.one * 0.9f, true);
+            spawnProp(m249, new Vector3(-0.85f, 1.01f, 4.35f), Quaternion.Euler(0, 25f, 0), Vector3.one * 0.9f, true);
+            spawnProp(ammoBox, new Vector3(0.0f, 1.01f, 4.4f), Quaternion.identity, Vector3.one * 0.7f, false);
+
+            // Rincón logístico izquierdo
+            spawnProp(pallet, new Vector3(-3.4f, 0f, 3.2f), Quaternion.Euler(0, 12f, 0), Vector3.one, false);
+            spawnProp(box1, new Vector3(-3.4f, 0.16f, 3.2f), Quaternion.Euler(0, 12f, 0), Vector3.one * 0.85f, false);
+            spawnProp(box2, new Vector3(-3.4f, 0.98f, 3.2f), Quaternion.Euler(0, 28f, 0), Vector3.one * 0.85f, false);
+            spawnProp(canister, new Vector3(-3.8f, 0f, 1.9f), Quaternion.identity, Vector3.one, false);
+
+            // Rincón de tiro derecho
+            spawnProp(sandbag, new Vector3(3.6f, 0f, 3.2f), Quaternion.Euler(0, -45f, 0), Vector3.one * 0.9f, false);
+            spawnProp(target, new Vector3(2.8f, 0f, 2.2f), Quaternion.Euler(0, -55f, 0), Vector3.one * 1.5f, false);
+            spawnProp(dummy, new Vector3(3.7f, 0f, 4.2f), Quaternion.Euler(0, -60f, 0), Vector3.one * 0.8f, false);
         }
 
         #region Helper Creators
