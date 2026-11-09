@@ -63,6 +63,46 @@ namespace VRRangeAcademy.Editor
             rightWall.transform.localScale = new Vector3(0.2f, 4.0f, 10f);
             rightWall.GetComponent<Renderer>().sharedMaterial = matWalls;
 
+            // Rear Wall (Pared trasera cerrada detrás del jugador)
+            GameObject rearWall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            rearWall.name = "Rear_Wall";
+            rearWall.transform.parent = envRoot.transform;
+            rearWall.transform.position = new Vector3(0, 2.0f, -3.0f);
+            rearWall.transform.localScale = new Vector3(10f, 4.0f, 0.2f);
+            rearWall.GetComponent<Renderer>().sharedMaterial = matWalls;
+
+            // Armored Security Door on Rear Wall
+            GameObject door = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            door.name = "Rear_Armory_Door";
+            door.transform.parent = envRoot.transform;
+            door.transform.position = new Vector3(0, 1.25f, -2.88f);
+            door.transform.localScale = new Vector3(1.3f, 2.5f, 0.06f);
+            door.GetComponent<Renderer>().sharedMaterial = matMetal;
+
+            // Door Frame / Trim
+            GameObject doorFrame = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            doorFrame.name = "Door_Frame";
+            doorFrame.transform.parent = door.transform;
+            doorFrame.transform.localPosition = new Vector3(0, 0, 0);
+            doorFrame.transform.localScale = new Vector3(1.15f, 1.05f, 1.2f);
+            doorFrame.GetComponent<Renderer>().sharedMaterial = matWood;
+
+            // Door Bulkhead Lamp
+            GameObject doorLamp = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            doorLamp.name = "Door_Bulkhead_Lamp";
+            doorLamp.transform.parent = envRoot.transform;
+            doorLamp.transform.position = new Vector3(0, 2.7f, -2.85f);
+            doorLamp.transform.localScale = new Vector3(0.2f, 0.05f, 0.2f);
+            doorLamp.transform.rotation = Quaternion.Euler(90f, 0, 0);
+            GameObject doorLightObj = new GameObject("Door_Lamp_Light");
+            doorLightObj.transform.parent = doorLamp.transform;
+            doorLightObj.transform.localPosition = Vector3.zero;
+            var doorLight = doorLightObj.AddComponent<Light>();
+            doorLight.type = LightType.Point;
+            doorLight.range = 5f;
+            doorLight.intensity = 1.2f;
+            doorLight.color = new Color(1.0f, 0.9f, 0.75f);
+
             // Ceiling
             GameObject ceiling = GameObject.CreatePrimitive(PrimitiveType.Cube);
             ceiling.name = "Ceiling";
@@ -456,6 +496,10 @@ namespace VRRangeAcademy.Editor
 
             var target = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Glowing Rifts/Shooting Target/ShootingTarget.prefab");
             var dummy = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Blink/Art/NPCs/Stylized/DummyTarget/DummyTarget.prefab");
+            var rpg = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Low Poly Weapons VOL.1/Prefabs/RPG7.prefab");
+            var rgd5 = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Low Poly Weapons VOL.1/Prefabs/RGD-5.prefab");
+            var smoke = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Low Poly Weapons VOL.1/Prefabs/Smoke.prefab");
+            var m2 = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Low Poly Weapons VOL.1/Prefabs/M2_50cal.prefab");
 
             // Mesa frontal (Workbench)
             spawnProp(m1911, new Vector3(-0.18f, 0.91f, 1.35f), Quaternion.Euler(-90f, 35f, 0f), Vector3.one, true);
@@ -487,6 +531,65 @@ namespace VRRangeAcademy.Editor
             spawnProp(sandbag, new Vector3(3.6f, 0f, 3.2f), Quaternion.Euler(0, -45f, 0), Vector3.one * 0.9f, false);
             spawnProp(target, new Vector3(2.8f, 0f, 2.2f), Quaternion.Euler(0, -55f, 0), Vector3.one * 1.5f, false);
             spawnProp(dummy, new Vector3(3.7f, 0f, 4.2f), Quaternion.Euler(0, -60f, 0), Vector3.one * 0.8f, false);
+
+            Material matWood = GameObject.Find("Workbench_Frontal/TableTop")?.GetComponent<Renderer>()?.sharedMaterial;
+            Material matMetal = GameObject.Find("Ceiling")?.GetComponent<Renderer>()?.sharedMaterial;
+
+            // Armeros en pared trasera (a ambos lados de la puerta)
+            GameObject rearBoardLeft = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            rearBoardLeft.name = "Rear_Wall_Pegboard_Left";
+            rearBoardLeft.transform.parent = decorRoot.transform;
+            rearBoardLeft.transform.position = new Vector3(-2.3f, 2.05f, -2.88f);
+            rearBoardLeft.transform.localScale = new Vector3(2.4f, 1.7f, 0.04f);
+            if (matWood != null) rearBoardLeft.GetComponent<Renderer>().sharedMaterial = matWood;
+
+            spawnProp(rpg, new Vector3(-2.3f, 2.55f, -2.83f), Quaternion.Euler(0, -90f, 0), Vector3.one, true);
+            spawnProp(ak74, new Vector3(-2.3f, 2.10f, -2.83f), Quaternion.Euler(0, -90f, 0), Vector3.one, true);
+            spawnProp(uzi, new Vector3(-2.3f, 1.65f, -2.83f), Quaternion.Euler(0, -90f, 0), Vector3.one, true);
+
+            GameObject rearBoardRight = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            rearBoardRight.name = "Rear_Wall_Pegboard_Right";
+            rearBoardRight.transform.parent = decorRoot.transform;
+            rearBoardRight.transform.position = new Vector3(2.3f, 2.05f, -2.88f);
+            rearBoardRight.transform.localScale = new Vector3(2.4f, 1.7f, 0.04f);
+            if (matWood != null) rearBoardRight.GetComponent<Renderer>().sharedMaterial = matWood;
+
+            spawnProp(m107, new Vector3(2.3f, 2.55f, -2.83f), Quaternion.Euler(0, -90f, 0), Vector3.one * 0.9f, true);
+            spawnProp(m4_8, new Vector3(2.3f, 2.10f, -2.83f), Quaternion.Euler(0, -90f, 0), Vector3.one, true);
+            spawnProp(bennelli, new Vector3(2.3f, 1.65f, -2.83f), Quaternion.Euler(0, -90f, 0), Vector3.one, true);
+
+            // Armero en pared lateral izquierda
+            GameObject leftBoard = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            leftBoard.name = "Left_Wall_Pegboard";
+            leftBoard.transform.parent = decorRoot.transform;
+            leftBoard.transform.position = new Vector3(-4.88f, 2.10f, 0.4f);
+            leftBoard.transform.localScale = new Vector3(0.04f, 1.7f, 3.0f);
+            if (matWood != null) leftBoard.GetComponent<Renderer>().sharedMaterial = matWood;
+
+            spawnProp(m249, new Vector3(-4.83f, 2.55f, 0.4f), Quaternion.Euler(0, 0, 0), Vector3.one * 0.9f, true);
+            spawnProp(ak74, new Vector3(-4.83f, 2.10f, 0.4f), Quaternion.Euler(0, 0, 0), Vector3.one, true);
+            spawnProp(m4_8, new Vector3(-4.83f, 1.65f, 0.4f), Quaternion.Euler(0, 0, 0), Vector3.one, true);
+
+            // Pared lateral derecha con repisa de granadas y ametralladora pesada
+            GameObject rightBoard = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            rightBoard.name = "Right_Wall_Pegboard";
+            rightBoard.transform.parent = decorRoot.transform;
+            rightBoard.transform.position = new Vector3(4.88f, 2.10f, 0.4f);
+            rightBoard.transform.localScale = new Vector3(0.04f, 1.7f, 3.0f);
+            if (matWood != null) rightBoard.GetComponent<Renderer>().sharedMaterial = matWood;
+
+            GameObject shelfRight = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            shelfRight.name = "Right_Wall_Shelf";
+            shelfRight.transform.parent = decorRoot.transform;
+            shelfRight.transform.position = new Vector3(4.75f, 1.50f, 0.4f);
+            shelfRight.transform.localScale = new Vector3(0.28f, 0.04f, 2.6f);
+            if (matMetal != null) shelfRight.GetComponent<Renderer>().sharedMaterial = matMetal;
+
+            spawnProp(m2, new Vector3(4.68f, 2.30f, 0.4f), Quaternion.Euler(0, -90f, 0), Vector3.one * 0.75f, true);
+            spawnProp(rgd5, new Vector3(4.75f, 1.60f, 0.9f), Quaternion.identity, Vector3.one * 1.2f, true);
+            spawnProp(rgd5, new Vector3(4.75f, 1.60f, 0.6f), Quaternion.identity, Vector3.one * 1.2f, true);
+            spawnProp(smoke, new Vector3(4.75f, 1.60f, 0.1f), Quaternion.identity, Vector3.one * 1.2f, true);
+            spawnProp(smoke, new Vector3(4.75f, 1.60f, -0.2f), Quaternion.identity, Vector3.one * 1.2f, true);
         }
 
         #region Helper Creators
