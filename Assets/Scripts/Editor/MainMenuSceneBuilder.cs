@@ -295,7 +295,7 @@ namespace VRRangeAcademy.Editor
 
             CreateUIText("FooterText", footerBar.transform,
                 new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(950f, 40f),
-                "🎮 <b>Dispositivo:</b> Meta Quest   |   <b>Interacción:</b> Controladores de Mano (use Gatillo para seleccionar)",
+                "🎮 <b>Dispositivo:</b> Meta Quest 3   |   <b>Mandos:</b> Touch Plus (use Gatillo para seleccionar)",
                 15, FontStyles.Normal, TextAlignmentOptions.Center, new Color(0.6f, 0.82f, 1.0f));
 
             // --- Toast Notification Panel ---
@@ -348,17 +348,17 @@ namespace VRRangeAcademy.Editor
 
             // Title
             CreateUIText("GuideTitle", panel.transform,
-                new Vector2(0.5f, 1.0f), new Vector2(0, -35f), new Vector2(440f, 45f),
-                "🎮 MAPEO DE CONTROLES", 20, FontStyles.Bold,
+                new Vector2(0.5f, 1.0f), new Vector2(0, -35f), new Vector2(440f, 55f),
+                "🎮 CONTROLES META QUEST 3\n<size=14><color=#7FC3FF>Touch Plus Controllers</color></size>", 19, FontStyles.Bold,
                 TextAlignmentOptions.Center, new Color(0.3f, 0.85f, 1.0f));
 
             // Controls Breakdown List
             string controlsGuideText =
-                "<b>Gatillo (Trigger):</b>\n  ↳ Seleccionar en menús / Disparar\n\n" +
-                "<b>Grip (Agarre lateral):</b>\n  ↳ Tomar armas, cargadores y objetos\n\n" +
-                "<b>Botón 'A' / 'X':</b>\n  ↳ Regresar / Menú rápido\n\n" +
-                "<b>Joystick:</b>\n  ↳ Teletransporte / Giro suave\n\n" +
-                "<b>Gatillo lateral secundario:</b>\n  ↳ Menú contextual / Desarme seguro";
+                "<b>Gatillo Index (Trigger):</b>\n  ↳ Seleccionar menús / Disparar arma\n\n" +
+                "<b>Grip (Agarre medio):</b>\n  ↳ Sujetar armas, empuñadura y cargadores\n\n" +
+                "<b>Botón 'A' (Mando Der) / 'X' (Mando Izq):</b>\n  ↳ Menú rápido / Liberar cerrojo (Slide lock)\n\n" +
+                "<b>Botón 'B' / 'Y':</b>\n  ↳ Expulsar cargador / Seguro del arma\n\n" +
+                "<b>Thumbstick (Joystick):</b>\n  ↳ Desplazamiento y giro suave / por pasos";
 
             CreateUIText("GuideBody", panel.transform,
                 new Vector2(0.5f, 0.5f), new Vector2(0, -20f), new Vector2(430f, 380f),

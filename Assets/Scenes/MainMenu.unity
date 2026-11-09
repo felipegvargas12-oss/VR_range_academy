@@ -2387,7 +2387,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\U0001F3AE <b>Dispositivo:</b> Meta Quest   |   <b>Interacci\xF3n:</b> Controladores de Mano (use Gatillo para seleccionar)"
+  m_text: "\U0001F3AE <b>Dispositivo:</b> Meta Quest 3   |   <b>Mandos:</b> Touch Plus (use Gatillo para seleccionar)"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -2920,7 +2920,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "<b>Gatillo (Trigger):</b>\n  \u21B3 Seleccionar en men\xFAs / Disparar\n\n<b>Grip (Agarre lateral):</b>\n  \u21B3 Tomar armas, cargadores y objetos\n\n<b>Bot\xF3n 'A' / 'X':</b>\n  \u21B3 Regresar / Men\xFA r\xE1pido\n\n<b>Joystick:</b>\n  \u21B3 Teletransporte / Giro suave\n\n<b>Gatillo lateral secundario:</b>\n  \u21B3 Men\xFA contextual / Desarme seguro"
+  m_text: "<b>Gatillo Index (Trigger):</b>\n  \u21B3 Seleccionar men\xFAs / Disparar arma\n\n<b>Grip (Agarre medio):</b>\n  \u21B3 Sujetar armas, empu\xF1adura y cargadores\n\n<b>Bot\xF3n 'A' (Mando Der) / 'X' (Mando Izq):</b>\n  \u21B3 Men\xFA r\xE1pido / Liberar cerrojo (Slide lock)\n\n<b>Bot\xF3n 'B' / 'Y':</b>\n  \u21B3 Expulsar cargador / Seguro del arma\n\n<b>Thumbstick (Joystick):</b>\n  \u21B3 Desplazamiento y giro suave / por pasos"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -3192,7 +3192,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\U0001F3AE MAPEO DE CONTROLES"
+  m_text: "\U0001F3AE CONTROLES META QUEST 3\n<size=14><color=#7FC3FF>Touch Plus Controllers</color></size>"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
