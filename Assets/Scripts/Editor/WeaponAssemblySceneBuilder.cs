@@ -30,52 +30,58 @@ namespace VRRangeAcademy.Editor
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             scene.name = "WeaponAssembly";
 
-            // 2. Materiales de la escena
+            // 2. Materiales de la escena (URP Lit asegurando _BaseColor)
             var matFloor = CreateMaterial("Mat_Assembly_Floor", new Color(0.18f, 0.19f, 0.21f), 0.2f, 0.1f);
-            var matWall = CreateMaterial("Mat_Assembly_Wall", new Color(0.24f, 0.25f, 0.26f), 0.1f, 0.05f);
-            var matMat = CreateMaterial("Mat_ArmorerMat", new Color(0.14f, 0.16f, 0.15f), 0.1f, 0.0f);
-            var matHolo = CreateHologramMaterial("Mat_CyanHologram", new Color(0f, 0.85f, 1f, 0.42f));
-            var matHoloSolid = CreateHologramMaterial("Mat_CyanHoloSolid", new Color(0.1f, 0.95f, 1f, 0.85f));
+            var matWall = CreateMaterial("Mat_Assembly_Wall", new Color(0.25f, 0.26f, 0.28f), 0.1f, 0.05f);
+            var matMat = CreateMaterial("Mat_ArmorerMat", new Color(0.13f, 0.17f, 0.15f), 0.1f, 0.0f);
+            var matHolo = CreateHologramMaterial("Mat_CyanHologram", new Color(0f, 0.85f, 1f, 0.45f));
+            var matSocketGlow = CreateHologramMaterial("Mat_SocketGlow", new Color(0f, 1f, 0.8f, 0.4f));
+            var matGuidance = CreateHologramMaterial("Mat_GuidanceLine", new Color(0f, 0.85f, 1f, 0.9f));
             var matController = CreateMaterial("Mat_QuestController", new Color(0.92f, 0.92f, 0.94f), 0.4f, 0.1f);
+            var matProps = AssetDatabase.LoadAssetAtPath<Material>("Assets/Defensive_props/Materials/military prop pack.mat");
+            var matGuns = AssetDatabase.LoadAssetAtPath<Material>("Assets/Low Poly Weapons VOL.1/Gun_MAT.mat");
 
             // 3. Iluminación
             BuildLighting();
 
-            // 4. Entorno de Armería / Taller
+            // 4. Entorno de Armería / Taller decorado
             var envRoot = new GameObject("--- ENVIRONMENT (TALLER DESPIECE) ---");
             BuildWorkshopRoom(envRoot, matFloor, matWall);
-            BuildBackgroundProps(envRoot);
+            BuildEnrichedDecorations(envRoot, matProps, matGuns);
 
             // 5. Banco de Trabajo Central y Tapete de Armero
-            var workbenchObj = BuildCentralWorkbench(envRoot, matMat);
+            var benchRoot = BuildCentralWorkbench(envRoot, matMat, matProps);
 
-            // 6. Modelo Holográfico Flotante de Referencia
-            var holoGunObj = BuildHolographicReferenceGun(workbenchObj, matHolo);
+            // 6. Contenedores de Piezas y Holograma
+            var piecesContainer = new GameObject("--- DISASSEMBLED PIECES (ON TABLE) ---");
+            piecesContainer.transform.SetParent(benchRoot.transform, false);
 
-            // 7. Piezas Desarmadas Distribuidas en el Tapete
-            var pieces = BuildDisassembledPiecesOnMat(workbenchObj, holoGunObj);
+            var holoContainer = new GameObject("Holographic_Reference_Gun");
+            holoContainer.transform.SetParent(benchRoot.transform, false);
+            holoContainer.transform.localPosition = new Vector3(0f, 1.48f, 0.0f);
+            holoContainer.transform.localRotation = Quaternion.Euler(0f, 85f, -8f);
 
-            // 8. Flecha Guía Dinámica
-            var arrowObj = BuildGuidanceArrow(workbenchObj);
+            // 7. Flecha Guía Dinámica
+            var arrowObj = BuildGuidanceArrow(benchRoot, matGuidance);
 
-            // 9. HUD Holográfico en el Espacio
-            var hudCanvas = BuildHolographicHUD(workbenchObj);
+            // 8. HUD Holográfico con Selector de Armas
+            var hudCanvas = BuildHolographicHUD(benchRoot);
 
-            // 10. Jugador Primera Persona con Mandos Oculus Touch
+            // 9. Jugador Primera Persona con Mandos Oculus Touch y WASD
             var playerRig = BuildPlayerWithControllers(matController);
 
-            // 11. Manager de Ensamble y Mecánicas
+            // 10. Manager de Ensamble y Mecánicas Dinámicas
             var managerGo = new GameObject("WeaponAssemblyManager");
             var manager = managerGo.AddComponent<Assembly.WeaponAssemblyManager>();
 
-            // Configurar SerializedObject del manager para vincular referencias
-            ConfigureManager(manager, pieces, holoGunObj, arrowObj, hudCanvas);
+            // Configurar campos serializados del manager
+            ConfigureManager(manager, piecesContainer.transform, holoContainer.transform, arrowObj, hudCanvas, matGuns, matHolo, matSocketGlow);
 
-            // 12. Guardar la escena y agregar a Build Settings
+            // 11. Guardar la escena y agregar a Build Settings
             EditorSceneManager.SaveScene(scene, SCENE_PATH);
             AddSceneToBuildSettings(SCENE_PATH);
 
-            Debug.Log($"<color=#00FF99>Escena 2 (Banco de Anatomía / Mesa de Despiece) construida con éxito en: {SCENE_PATH}</color>");
+            Debug.Log($"<color=#00FF99>Escena 2 (Banco de Anatomía Técnica) construida con éxito en: {SCENE_PATH}</color>");
         }
 
         private static void BuildLighting()
@@ -87,35 +93,35 @@ namespace VRRangeAcademy.Editor
             var dirLightGo = new GameObject("Directional Light");
             var dirLight = dirLightGo.AddComponent<Light>();
             dirLight.type = LightType.Directional;
-            dirLight.color = new Color(0.95f, 0.95f, 1.0f);
-            dirLight.intensity = 0.4f;
+            dirLight.color = new Color(0.92f, 0.94f, 1.0f);
+            dirLight.intensity = 0.38f;
             dirLightGo.transform.rotation = Quaternion.Euler(48f, -35f, 0f);
 
             // Foco de iluminación directa sobre el banco de trabajo (Cono de luz cálida del mockup)
             var spotLightGo = new GameObject("Workbench_SpotLight");
-            spotLightGo.transform.position = new Vector3(0f, 3.2f, 1.45f);
+            spotLightGo.transform.position = new Vector3(0f, 3.4f, 1.42f);
             spotLightGo.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
             var spotLight = spotLightGo.AddComponent<Light>();
             spotLight.type = LightType.Spot;
-            spotLight.color = new Color(1.0f, 0.88f, 0.72f); // Luz incandescente cálida
-            spotLight.intensity = 4.2f;
-            spotLight.range = 5.5f;
-            spotLight.spotAngle = 65f;
-            spotLight.innerSpotAngle = 35f;
+            spotLight.color = new Color(1.0f, 0.88f, 0.70f); // Luz incandescente cálida
+            spotLight.intensity = 4.8f;
+            spotLight.range = 6.0f;
+            spotLight.spotAngle = 72f;
+            spotLight.innerSpotAngle = 38f;
 
             // Luz suave cian emitida por el holograma
             var holoLightGo = new GameObject("Hologram_CyanLight");
-            holoLightGo.transform.position = new Vector3(0f, 1.35f, 1.45f);
+            holoLightGo.transform.position = new Vector3(0f, 1.48f, 1.42f);
             var holoLight = holoLightGo.AddComponent<Light>();
             holoLight.type = LightType.Point;
-            holoLight.color = new Color(0f, 0.82f, 1f);
-            holoLight.intensity = 1.6f;
-            holoLight.range = 2.4f;
+            holoLight.color = new Color(0f, 0.85f, 1f);
+            holoLight.intensity = 1.8f;
+            holoLight.range = 2.6f;
 
             // Lámparas colgantes secundarias en las esquinas
-            CreateCeilingLamp(new Vector3(-2.8f, 3.2f, 1.45f), new Color(1f, 0.9f, 0.75f), 2.2f);
-            CreateCeilingLamp(new Vector3(2.8f, 3.2f, 1.45f), new Color(1f, 0.9f, 0.75f), 2.2f);
-            CreateCeilingLamp(new Vector3(0f, 3.2f, -1.8f), new Color(0.85f, 0.9f, 1f), 1.8f);
+            CreateCeilingLamp(new Vector3(-3.2f, 3.2f, 1.42f), new Color(1f, 0.9f, 0.75f), 2.4f);
+            CreateCeilingLamp(new Vector3(3.2f, 3.2f, 1.42f), new Color(1f, 0.9f, 0.75f), 2.4f);
+            CreateCeilingLamp(new Vector3(0f, 3.2f, -2.0f), new Color(0.85f, 0.9f, 1f), 1.8f);
         }
 
         private static void CreateCeilingLamp(Vector3 pos, Color col, float intensity)
@@ -138,102 +144,132 @@ namespace VRRangeAcademy.Editor
 
         private static void BuildWorkshopRoom(GameObject root, Material matFloor, Material matWall)
         {
-            // Suelo
             var floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
             floor.name = "Floor";
             floor.transform.SetParent(root.transform);
             floor.transform.position = new Vector3(0f, -0.05f, 1.5f);
-            floor.transform.localScale = new Vector3(12f, 0.1f, 12f);
-            floor.GetComponent<MeshRenderer>().material = matFloor;
+            floor.transform.localScale = new Vector3(14f, 0.1f, 14f);
+            floor.GetComponent<MeshRenderer>().sharedMaterial = matFloor;
 
-            // Pared Frontal (Detrás de la mesa)
             var wallFront = GameObject.CreatePrimitive(PrimitiveType.Cube);
             wallFront.name = "Front_Wall";
             wallFront.transform.SetParent(root.transform);
-            wallFront.transform.position = new Vector3(0f, 2.25f, 5.0f);
-            wallFront.transform.localScale = new Vector3(12f, 4.5f, 0.2f);
-            wallFront.GetComponent<MeshRenderer>().material = matWall;
+            wallFront.transform.position = new Vector3(0f, 2.25f, 5.5f);
+            wallFront.transform.localScale = new Vector3(14f, 4.5f, 0.2f);
+            wallFront.GetComponent<MeshRenderer>().sharedMaterial = matWall;
 
-            // Pared Izquierda
             var wallLeft = GameObject.CreatePrimitive(PrimitiveType.Cube);
             wallLeft.name = "Left_Wall";
             wallLeft.transform.SetParent(root.transform);
-            wallLeft.transform.position = new Vector3(-6.0f, 2.25f, 1.5f);
-            wallLeft.transform.localScale = new Vector3(0.2f, 4.5f, 12f);
-            wallLeft.GetComponent<MeshRenderer>().material = matWall;
+            wallLeft.transform.position = new Vector3(-7.0f, 2.25f, 1.5f);
+            wallLeft.transform.localScale = new Vector3(0.2f, 4.5f, 14f);
+            wallLeft.GetComponent<MeshRenderer>().sharedMaterial = matWall;
 
-            // Pared Derecha
             var wallRight = GameObject.CreatePrimitive(PrimitiveType.Cube);
             wallRight.name = "Right_Wall";
             wallRight.transform.SetParent(root.transform);
-            wallRight.transform.position = new Vector3(6.0f, 2.25f, 1.5f);
-            wallRight.transform.localScale = new Vector3(0.2f, 4.5f, 12f);
-            wallRight.GetComponent<MeshRenderer>().material = matWall;
+            wallRight.transform.position = new Vector3(7.0f, 2.25f, 1.5f);
+            wallRight.transform.localScale = new Vector3(0.2f, 4.5f, 14f);
+            wallRight.GetComponent<MeshRenderer>().sharedMaterial = matWall;
 
-            // Pared Trasera
             var wallRear = GameObject.CreatePrimitive(PrimitiveType.Cube);
             wallRear.name = "Rear_Wall";
             wallRear.transform.SetParent(root.transform);
-            wallRear.transform.position = new Vector3(0f, 2.25f, -4.5f);
-            wallRear.transform.localScale = new Vector3(12f, 4.5f, 0.2f);
-            wallRear.GetComponent<MeshRenderer>().material = matWall;
+            wallRear.transform.position = new Vector3(0f, 2.25f, -5.5f);
+            wallRear.transform.localScale = new Vector3(14f, 4.5f, 0.2f);
+            wallRear.GetComponent<MeshRenderer>().sharedMaterial = matWall;
 
-            // Techo con vigas
             var ceiling = GameObject.CreatePrimitive(PrimitiveType.Cube);
             ceiling.name = "Ceiling";
             ceiling.transform.SetParent(root.transform);
             ceiling.transform.position = new Vector3(0f, 4.5f, 1.5f);
-            ceiling.transform.localScale = new Vector3(12f, 0.15f, 12f);
-            ceiling.GetComponent<MeshRenderer>().material = matWall;
+            ceiling.transform.localScale = new Vector3(14f, 0.15f, 14f);
+            ceiling.GetComponent<MeshRenderer>().sharedMaterial = matWall;
         }
 
-        private static void BuildBackgroundProps(GameObject root)
+        private static void BuildEnrichedDecorations(GameObject root, Material matProps, Material matGuns)
         {
             var propsFbx = "Assets/Defensive_props/models/Defensive_props.fbx";
-            var matProps = AssetDatabase.LoadAssetAtPath<Material>("Assets/Defensive_props/Materials/military prop pack.mat");
-            if (matProps == null)
-            {
-                matProps = CreateMaterial("Mat_Defensive_props_URP", new Color(0.4f, 0.42f, 0.4f), 0.4f, 0.2f);
-            }
+            var weaponsRoot = "Assets/Low Poly Weapons VOL.1/Models/";
 
-            // Bancos de trabajo traseros
-            InstantiateMeshProp(propsFbx, "workbench", new Vector3(-2.8f, 0f, 4.4f), Quaternion.Euler(0f, 0f, 0f), new Vector3(1.1f, 1.1f, 1.1f), matProps, root.transform);
-            InstantiateMeshProp(propsFbx, "workbench", new Vector3(2.8f, 0f, 4.4f), Quaternion.Euler(0f, 0f, 0f), new Vector3(1.1f, 1.1f, 1.1f), matProps, root.transform);
+            // 1. Armeros en la pared frontal (detrás de la mesa central)
+            InstantiateWeaponOrnament(weaponsRoot + "AK74.fbx", new Vector3(-1.8f, 2.2f, 5.38f), Quaternion.Euler(0f, 180f, 0f), 1.2f, matGuns, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "M4_8.fbx", new Vector3(-0.6f, 2.2f, 5.38f), Quaternion.Euler(0f, 180f, 0f), 1.2f, matGuns, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "Bennelli_M4.fbx", new Vector3(0.6f, 2.2f, 5.38f), Quaternion.Euler(0f, 180f, 0f), 1.2f, matGuns, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "M107.fbx", new Vector3(1.8f, 2.2f, 5.38f), Quaternion.Euler(0f, 180f, 0f), 1.1f, matGuns, root.transform);
 
-            // Cajas y consumibles en pared izquierda
-            InstantiateMeshProp(propsFbx, "wooden_table", new Vector3(-5.2f, 0f, 1.8f), Quaternion.Euler(0f, 90f, 0f), Vector3.one, matProps, root.transform);
-            InstantiateMeshProp(propsFbx, "box1", new Vector3(-5.2f, 0.85f, 1.5f), Quaternion.identity, Vector3.one * 0.9f, matProps, root.transform);
-            InstantiateMeshProp(propsFbx, "box2", new Vector3(-5.2f, 0.85f, 2.1f), Quaternion.identity, Vector3.one * 0.85f, matProps, root.transform);
-            InstantiateMeshProp(propsFbx, "canister", new Vector3(-4.8f, 0f, 3.2f), Quaternion.identity, Vector3.one * 1.1f, matProps, root.transform);
+            // Tablero perforado de armero
+            var pegboard = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            pegboard.name = "Wall_Gun_Pegboard";
+            pegboard.transform.SetParent(root.transform);
+            pegboard.transform.position = new Vector3(0f, 2.2f, 5.42f);
+            pegboard.transform.localScale = new Vector3(4.8f, 1.4f, 0.05f);
+            var matWood = CreateMaterial("Mat_Pegboard_Wood", new Color(0.35f, 0.25f, 0.16f), 0.2f, 0f);
+            pegboard.GetComponent<MeshRenderer>().sharedMaterial = matWood;
 
-            // Consolas y cajas en pared derecha
-            InstantiateMeshProp(propsFbx, "electronics1", new Vector3(5.2f, 0f, 2.0f), Quaternion.Euler(0f, -90f, 0f), Vector3.one, matProps, root.transform);
-            InstantiateMeshProp(propsFbx, "ammo_box", new Vector3(5.1f, 0f, 0.8f), Quaternion.identity, Vector3.one * 1.1f, matProps, root.transform);
-            InstantiateMeshProp(propsFbx, "sandbag barricade", new Vector3(4.8f, 0f, 4.0f), Quaternion.Euler(0f, -45f, 0f), Vector3.one * 0.85f, matProps, root.transform);
+            // 2. Bancos auxiliares en la pared frontal
+            InstantiateMeshProp(propsFbx, "workbench", new Vector3(-3.5f, 0f, 4.8f), Quaternion.Euler(0f, 90f, 0f), new Vector3(1.2f, 1.05f, 1.05f), matProps, root.transform);
+            InstantiateMeshProp(propsFbx, "workbench", new Vector3(3.5f, 0f, 4.8f), Quaternion.Euler(0f, 90f, 0f), new Vector3(1.2f, 1.05f, 1.05f), matProps, root.transform);
+
+            // Props en banco izquierdo: Consola electrónica, caja de herramientas, canister y granadas
+            InstantiateMeshProp(propsFbx, "electronics1", new Vector3(-3.5f, 1.05f, 4.8f), Quaternion.identity, Vector3.one * 0.9f, matProps, root.transform);
+            InstantiateMeshProp(propsFbx, "ammo_box", new Vector3(-4.2f, 1.05f, 4.8f), Quaternion.Euler(0f, 25f, 0f), Vector3.one * 0.9f, matProps, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "RGD-5.fbx", new Vector3(-2.8f, 1.05f, 4.8f), Quaternion.identity, 1.3f, matGuns, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "Smoke.fbx", new Vector3(-2.6f, 1.05f, 4.7f), Quaternion.Euler(0f, 30f, 0f), 1.3f, matGuns, root.transform);
+
+            // Props en banco derecho: Osciloscopio, cajas y miras tácticas ópticas
+            InstantiateMeshProp(propsFbx, "electronics3", new Vector3(3.5f, 1.05f, 4.8f), Quaternion.identity, Vector3.one * 0.9f, matProps, root.transform);
+            InstantiateMeshProp(propsFbx, "box2", new Vector3(4.2f, 1.05f, 4.8f), Quaternion.Euler(0f, -15f, 0f), Vector3.one * 0.85f, matProps, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "ELCAN.fbx", new Vector3(2.8f, 1.05f, 4.8f), Quaternion.Euler(0f, 45f, 0f), 1.3f, matGuns, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "TAN_LR_Scope_01.fbx", new Vector3(2.5f, 1.05f, 4.7f), Quaternion.Euler(0f, -20f, 0f), 1.2f, matGuns, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "ANPEQ15.fbx", new Vector3(3.0f, 1.05f, 4.6f), Quaternion.identity, 1.3f, matGuns, root.transform);
+
+            // 3. Rincón Izquierdo (Pallet con cajas, bidones de combustible, obús y erizo defensivo)
+            InstantiateMeshProp(propsFbx, "pallet", new Vector3(-5.6f, 0f, 2.5f), Quaternion.Euler(0f, 20f, 0f), Vector3.one, matProps, root.transform);
+            InstantiateMeshProp(propsFbx, "box1", new Vector3(-5.6f, 0.15f, 2.5f), Quaternion.identity, Vector3.one * 0.9f, matProps, root.transform);
+            InstantiateMeshProp(propsFbx, "box3", new Vector3(-5.6f, 0.55f, 2.5f), Quaternion.Euler(0f, 15f, 0f), Vector3.one * 0.8f, matProps, root.transform);
+            InstantiateMeshProp(propsFbx, "canister", new Vector3(-5.0f, 0f, 3.4f), Quaternion.identity, Vector3.one * 1.1f, matProps, root.transform);
+            InstantiateMeshProp(propsFbx, "canister", new Vector3(-4.6f, 0f, 3.2f), Quaternion.Euler(0f, 45f, 0f), Vector3.one * 1.0f, matProps, root.transform);
+            InstantiateMeshProp(propsFbx, "howitzer_shell", new Vector3(-4.2f, 0f, 3.8f), Quaternion.identity, Vector3.one * 1.2f, matProps, root.transform);
+            InstantiateMeshProp(propsFbx, "Antitank_hedgehog", new Vector3(-5.5f, 0f, -3.8f), Quaternion.Euler(0f, 35f, 0f), Vector3.one * 1.0f, matProps, root.transform);
+
+            // 4. Pared Izquierda: Tablero con Lanzacohetes y Ametralladora ligera
+            InstantiateWeaponOrnament(weaponsRoot + "RPG7.fbx", new Vector3(-6.88f, 2.3f, 1.0f), Quaternion.Euler(0f, 90f, 0f), 1.2f, matGuns, root.transform);
+            InstantiateWeaponOrnament(weaponsRoot + "M249.fbx", new Vector3(-6.88f, 1.7f, 1.0f), Quaternion.Euler(0f, 90f, 0f), 1.1f, matGuns, root.transform);
+
+            // 5. Rincón Derecho (Ametralladora M2 .50cal montada en trípode, barricada de sacos terreros)
+            InstantiateWeaponOrnament(weaponsRoot + "M2_50cal.fbx", new Vector3(5.2f, 0f, 2.0f), Quaternion.Euler(0f, -45f, 0f), 1.0f, matGuns, root.transform);
+            InstantiateMeshProp(propsFbx, "sandbag barricade", new Vector3(5.6f, 0f, 1.2f), Quaternion.Euler(0f, -65f, 0f), Vector3.one, matProps, root.transform);
+            InstantiateMeshProp(propsFbx, "ammo_box", new Vector3(4.6f, 0f, 2.4f), Quaternion.identity, Vector3.one * 1.2f, matProps, root.transform);
+            InstantiateMeshProp(propsFbx, "mortar.001", new Vector3(5.4f, 0f, 3.2f), Quaternion.Euler(0f, -30f, 0f), Vector3.one * 1.1f, matProps, root.transform);
+
+            // 6. Pared Trasera (Armero auxiliar con puerta blindada)
+            var doorFrame = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            doorFrame.name = "Armory_Security_Door";
+            doorFrame.transform.SetParent(root.transform);
+            doorFrame.transform.position = new Vector3(0f, 1.5f, -5.4f);
+            doorFrame.transform.localScale = new Vector3(1.6f, 3.0f, 0.15f);
+            var matSteel = CreateMaterial("Mat_Armory_Steel", new Color(0.18f, 0.2f, 0.22f), 0.7f, 0.8f);
+            doorFrame.GetComponent<MeshRenderer>().sharedMaterial = matSteel;
         }
 
-        private static GameObject BuildCentralWorkbench(GameObject root, Material matMat)
+        private static GameObject BuildCentralWorkbench(GameObject root, Material matMat, Material matProps)
         {
             var benchRoot = new GameObject("Central_Assembly_Workbench");
             benchRoot.transform.SetParent(root.transform);
-            benchRoot.transform.position = new Vector3(0f, 0f, 1.45f);
+            benchRoot.transform.position = new Vector3(0f, 0f, 1.42f);
 
             var propsFbx = "Assets/Defensive_props/models/Defensive_props.fbx";
-            var matProps = AssetDatabase.LoadAssetAtPath<Material>("Assets/Defensive_props/Materials/military prop pack.mat");
-            if (matProps == null)
-            {
-                matProps = CreateMaterial("Mat_Defensive_props_URP", new Color(0.4f, 0.42f, 0.4f), 0.4f, 0.2f);
-            }
 
-            // Modelo físico del banco
-            var tableObj = InstantiateMeshProp(propsFbx, "workbench", Vector3.zero, Quaternion.identity, new Vector3(1.25f, 1.05f, 1.05f), matProps, benchRoot.transform);
+            // Modelo físico del banco: Rotado 90 grados para quedar ancho (2.52m de ancho)
+            var tableObj = InstantiateMeshProp(propsFbx, "workbench", Vector3.zero, Quaternion.Euler(0f, 90f, 0f), new Vector3(1.25f, 1.05f, 1.05f), matProps, benchRoot.transform);
 
-            // Tapete de Armero (Mat de Despiece en neopreno verde/gris sobre la mesa)
+            // Tapete de Armero (Mat de Despiece de neopreno): Colocado exactamente sobre la mesa a Y=1.055m
             var matObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
             matObj.name = "Armorer_Disassembly_Mat";
             matObj.transform.SetParent(benchRoot.transform);
-            matObj.transform.localPosition = new Vector3(0f, 0.88f, 0.05f);
-            matObj.transform.localScale = new Vector3(1.05f, 0.012f, 0.58f);
+            matObj.transform.localPosition = new Vector3(0f, 1.055f, 0f);
+            matObj.transform.localScale = new Vector3(1.68f, 0.014f, 0.74f);
             matObj.GetComponent<MeshRenderer>().sharedMaterial = matMat;
 
             // Borde / marco estético del tapete
@@ -243,193 +279,42 @@ namespace VRRangeAcademy.Editor
             matBorder.transform.localPosition = new Vector3(0f, 0.55f, 0f);
             matBorder.transform.localScale = new Vector3(0.98f, 0.2f, 0.96f);
             Object.DestroyImmediate(matBorder.GetComponent<Collider>());
-            var borderMat = CreateMaterial("Mat_MatBorder", new Color(0.12f, 0.28f, 0.35f), 0.1f, 0.0f);
+            var borderMat = CreateMaterial("Mat_MatBorder", new Color(0.12f, 0.32f, 0.42f), 0.1f, 0.0f);
             matBorder.GetComponent<MeshRenderer>().sharedMaterial = borderMat;
 
-            // Props en la mesa (Caja de herramientas, munición de prueba, destornillador)
-            InstantiateMeshProp(propsFbx, "ammo_box", new Vector3(0.58f, 0.88f, 0.15f), Quaternion.Euler(0f, -15f, 0f), Vector3.one * 0.7f, matProps, benchRoot.transform);
-            InstantiateMeshProp(propsFbx, "Shell_casing", new Vector3(0.48f, 0.88f, -0.15f), Quaternion.Euler(0f, 40f, 0f), Vector3.one * 1.5f, matProps, benchRoot.transform);
-            InstantiateMeshProp(propsFbx, "Shell_casing", new Vector3(0.52f, 0.88f, -0.12f), Quaternion.Euler(0f, 10f, 0f), Vector3.one * 1.5f, matProps, benchRoot.transform);
+            // Props en la mesa (Caja de munición y vainas de calibre de prueba en los extremos)
+            InstantiateMeshProp(propsFbx, "ammo_box", new Vector3(0.95f, 1.055f, 0.12f), Quaternion.Euler(0f, -15f, 0f), Vector3.one * 0.7f, matProps, benchRoot.transform);
+            InstantiateMeshProp(propsFbx, "Shell_casing", new Vector3(0.85f, 1.055f, -0.15f), Quaternion.Euler(0f, 40f, 0f), Vector3.one * 1.5f, matProps, benchRoot.transform);
+            InstantiateMeshProp(propsFbx, "Shell_casing", new Vector3(0.89f, 1.055f, -0.12f), Quaternion.Euler(0f, 10f, 0f), Vector3.one * 1.5f, matProps, benchRoot.transform);
 
-            // Proyector holográfico (Placa emisora con emisor de luz en la mesa)
+            // Proyector holográfico (Placa emisora con brillo en la mesa)
             var holoEmitter = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             holoEmitter.name = "Hologram_Projector_Base";
             holoEmitter.transform.SetParent(benchRoot.transform);
-            holoEmitter.transform.localPosition = new Vector3(0f, 0.885f, 0.08f);
-            holoEmitter.transform.localScale = new Vector3(0.38f, 0.005f, 0.38f);
+            holoEmitter.transform.localPosition = new Vector3(0f, 1.058f, 0f);
+            holoEmitter.transform.localScale = new Vector3(0.55f, 0.006f, 0.55f);
             Object.DestroyImmediate(holoEmitter.GetComponent<Collider>());
-            var emitterMat = CreateMaterial("Mat_HoloProjector", new Color(0.08f, 0.22f, 0.32f), 0.8f, 0.6f);
+            var emitterMat = CreateMaterial("Mat_HoloProjector", new Color(0.08f, 0.22f, 0.35f), 0.8f, 0.6f);
             emitterMat.EnableKeyword("_EMISSION");
-            emitterMat.SetColor("_EmissionColor", new Color(0f, 0.6f, 0.9f) * 0.6f);
+            emitterMat.SetColor("_EmissionColor", new Color(0f, 0.7f, 1.0f) * 0.6f);
             holoEmitter.GetComponent<MeshRenderer>().sharedMaterial = emitterMat;
 
             return benchRoot;
         }
 
-        private static GameObject BuildHolographicReferenceGun(GameObject parent, Material matHolo)
-        {
-            var holoRoot = new GameObject("Holographic_Reference_Gun");
-            holoRoot.transform.SetParent(parent.transform);
-            // Flotando sobre el proyector a la altura visual de los ojos
-            holoRoot.transform.localPosition = new Vector3(0f, 1.34f, 0.08f);
-            // Rotación lateral tipo exhibición como en el mockup
-            holoRoot.transform.localRotation = Quaternion.Euler(0f, 85f, -8f);
-            holoRoot.transform.localScale = Vector3.one * 1.25f;
-
-            var m1911Prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Low Poly Weapons VOL.1/Models/M1911.fbx");
-            if (m1911Prefab != null)
-            {
-                var ghostInstance = Object.Instantiate(m1911Prefab, holoRoot.transform);
-                ghostInstance.name = "M1911_Hologram_Ghost";
-                ghostInstance.transform.localPosition = Vector3.zero;
-                ghostInstance.transform.localRotation = Quaternion.identity;
-                ghostInstance.transform.localScale = Vector3.one;
-
-                // Aplicar material holográfico a todas las subpartes y eliminar colliders
-                foreach (var mr in ghostInstance.GetComponentsInChildren<MeshRenderer>())
-                {
-                    mr.material = matHolo;
-                }
-                foreach (var col in ghostInstance.GetComponentsInChildren<Collider>())
-                {
-                    Object.DestroyImmediate(col);
-                }
-            }
-
-            // Crear Sockets de Encastre con transforms exactos
-            CreateSocket(holoRoot.transform, "Socket_Frame", Vector3.zero, Quaternion.identity);
-            CreateSocket(holoRoot.transform, "Socket_Hammer", new Vector3(0f, 0.04f, 0.05f), Quaternion.identity);
-            CreateSocket(holoRoot.transform, "Socket_Trigger", new Vector3(0f, -0.02f, -0.01f), Quaternion.identity);
-            CreateSocket(holoRoot.transform, "Socket_Slide", new Vector3(0f, 0.01f, -0.14f), Quaternion.identity);
-            CreateSocket(holoRoot.transform, "Socket_Magazine", new Vector3(0f, -0.05f, 0.05f), Quaternion.Euler(339.32f, 0f, 0f));
-
-            return holoRoot;
-        }
-
-        private static Transform CreateSocket(Transform parent, string name, Vector3 localPos, Quaternion localRot)
-        {
-            var go = new GameObject(name);
-            go.transform.SetParent(parent);
-            go.transform.localPosition = localPos;
-            go.transform.localRotation = localRot;
-
-            // Indicador sutil de punto de anclaje
-            var sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            sphere.name = "Socket_Anchor_Glow";
-            sphere.transform.SetParent(go.transform);
-            sphere.transform.localPosition = Vector3.zero;
-            sphere.transform.localScale = Vector3.one * 0.022f;
-            Object.DestroyImmediate(sphere.GetComponent<Collider>());
-            var glowMat = CreateHologramMaterial("Mat_SocketGlow", new Color(0f, 1f, 0.8f, 0.35f));
-            sphere.GetComponent<MeshRenderer>().sharedMaterial = glowMat;
-
-            return go.transform;
-        }
-
-        private static List<Assembly.AssemblyPiece> BuildDisassembledPiecesOnMat(GameObject workbench, GameObject holoGun)
-        {
-            var piecesList = new List<Assembly.AssemblyPiece>();
-            var m1911Prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Low Poly Weapons VOL.1/Models/M1911.fbx");
-            var matGun = AssetDatabase.LoadAssetAtPath<Material>("Assets/Low Poly Weapons VOL.1/Gun_MAT.mat");
-            if (matGun == null)
-            {
-                matGun = CreateMaterial("Mat_Guns_Fallback", new Color(0.2f, 0.22f, 0.23f), 0.7f, 0.3f);
-            }
-
-            var piecesParent = new GameObject("--- DISASSEMBLED PIECES (ON TABLE) ---");
-            piecesParent.transform.SetParent(workbench.transform);
-            piecesParent.transform.localPosition = Vector3.zero;
-
-            // Datos de cada pieza según el mockup de despiece
-            var configs = new[] {
-                new { Id = "Frame", Name = "Armazón (Frame)", Mesh = "M1911", Socket = "Socket_Frame",
-                      Pos = new Vector3(0.08f, 0.91f, 0.02f), Rot = Quaternion.Euler(0f, 90f, 90f),
-                      Desc = "Aloja el cargador, gatillo y sirve de guía para la corredera." },
-
-                new { Id = "Slide", Name = "Corredera (Slide)", Mesh = "Slide", Socket = "Socket_Slide",
-                      Pos = new Vector3(-0.25f, 0.91f, 0.02f), Rot = Quaternion.Euler(0f, 90f, 90f),
-                      Desc = "Recorre hacia atrás al disparar, extrae vainas y alimenta nuevos cartuchos." },
-
-                new { Id = "Trigger", Name = "Gatillo (Trigger)", Mesh = "Trigger", Socket = "Socket_Trigger",
-                      Pos = new Vector3(-0.06f, 0.90f, 0.18f), Rot = Quaternion.Euler(0f, 90f, 0f),
-                      Desc = "Acciona el fiador que libera el martillo para golpear la aguja percutora." },
-
-                new { Id = "Hammer", Name = "Martillo (Hammer)", Mesh = "Hammer", Socket = "Socket_Hammer",
-                      Pos = new Vector3(0.12f, 0.90f, 0.18f), Rot = Quaternion.Euler(0f, 90f, 0f),
-                      Desc = "Transmite la energía cinética acumulada del resorte al percutor." },
-
-                new { Id = "Magazine", Name = "Cargador (Magazine)", Mesh = "Magazin", Socket = "Socket_Magazine",
-                      Pos = new Vector3(0.28f, 0.90f, -0.06f), Rot = Quaternion.Euler(0f, 90f, 90f),
-                      Desc = "Almacena los cartuchos y los eleva hacia la recámara mediante un resorte interno." }
-            };
-
-            foreach (var cfg in configs)
-            {
-                var pieceGo = new GameObject("Piece_" + cfg.Id);
-                pieceGo.transform.SetParent(piecesParent.transform);
-                pieceGo.transform.localPosition = cfg.Pos;
-                pieceGo.transform.localRotation = cfg.Rot;
-                pieceGo.transform.localScale = Vector3.one * 1.25f;
-
-                // Mesh Filter y Renderer
-                var mf = pieceGo.AddComponent<MeshFilter>();
-                var mr = pieceGo.AddComponent<MeshRenderer>();
-                mr.sharedMaterial = matGun;
-
-                // Extraer la malla específica del FBX
-                var mesh = FindSubmesh(m1911Prefab, cfg.Mesh);
-                if (mesh != null) mf.sharedMesh = mesh;
-
-                // BoxCollider con tamaño generoso para fácil agarre con ratón o VR
-                var col = pieceGo.AddComponent<BoxCollider>();
-                Vector3 sz = col.size;
-                sz.x = Mathf.Max(sz.x, 0.08f);
-                sz.y = Mathf.Max(sz.y, 0.08f);
-                sz.z = Mathf.Max(sz.z, 0.08f);
-                col.size = sz;
-
-                // Rigidbody
-                var rb = pieceGo.AddComponent<Rigidbody>();
-                rb.mass = 0.5f;
-                rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
-
-                // Script AssemblyPiece
-                var pieceComp = pieceGo.AddComponent<Assembly.AssemblyPiece>();
-                pieceComp.pieceId = cfg.Id;
-                pieceComp.displayName = cfg.Name;
-                pieceComp.functionDescription = cfg.Desc;
-                pieceComp.snapThresholdDistance = 0.22f;
-
-                // Asignar el socket correspondiente en el holograma
-                var socketTrans = holoGun.transform.Find(cfg.Socket);
-                pieceComp.targetSocket = socketTrans;
-
-                pieceComp.SetInitialTransform(pieceGo.transform.position, pieceGo.transform.rotation);
-                piecesList.Add(pieceComp);
-            }
-
-            return piecesList;
-        }
-
-        private static Mesh FindSubmesh(GameObject prefab, string meshName)
-        {
-            var assets = AssetDatabase.LoadAllAssetsAtPath(AssetDatabase.GetAssetPath(prefab));
-            foreach (var a in assets)
-            {
-                if (a is Mesh m && m.name == meshName) return m;
-            }
-            return null;
-        }
-
-        private static Assembly.GuidanceArrow BuildGuidanceArrow(GameObject parent)
+        private static Assembly.GuidanceArrow BuildGuidanceArrow(GameObject parent, Material lineMat)
         {
             var arrowGo = new GameObject("Guidance_Curved_Arrow");
             arrowGo.transform.SetParent(parent.transform);
             arrowGo.transform.localPosition = Vector3.zero;
 
             var lr = arrowGo.AddComponent<LineRenderer>();
-            var arrowComp = arrowGo.AddComponent<Assembly.GuidanceArrow>();
+            lr.sharedMaterial = lineMat;
+            lr.startWidth = 0.015f;
+            lr.endWidth = 0.035f;
+            lr.enabled = false;
 
+            var arrowComp = arrowGo.AddComponent<Assembly.GuidanceArrow>();
             return arrowComp;
         }
 
@@ -437,13 +322,13 @@ namespace VRRangeAcademy.Editor
         {
             var hudGo = new GameObject("Holographic_Assembly_HUD");
             hudGo.transform.SetParent(workbench.transform);
-            hudGo.transform.localPosition = new Vector3(0f, 1.86f, 0.12f);
-            hudGo.transform.localRotation = Quaternion.Euler(15f, 0f, 0f); // Tilted towards player
+            hudGo.transform.localPosition = new Vector3(0f, 2.05f, 0.05f);
+            hudGo.transform.localRotation = Quaternion.Euler(15f, 0f, 0f); // Inclinado hacia el usuario
 
             var canvas = hudGo.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.WorldSpace;
             var rt = hudGo.GetComponent<RectTransform>();
-            rt.sizeDelta = new Vector2(900f, 420f);
+            rt.sizeDelta = new Vector2(1050f, 480f);
             rt.localScale = Vector3.one * 0.0012f;
 
             hudGo.AddComponent<CanvasScaler>();
@@ -453,50 +338,54 @@ namespace VRRangeAcademy.Editor
             var panelBg = new GameObject("Panel_Background");
             panelBg.transform.SetParent(hudGo.transform, false);
             var panelImage = panelBg.AddComponent<Image>();
-            panelImage.color = new Color(0.04f, 0.09f, 0.14f, 0.88f);
+            panelImage.color = new Color(0.04f, 0.09f, 0.15f, 0.90f);
             var panelRt = panelBg.GetComponent<RectTransform>();
             panelRt.anchorMin = Vector2.zero;
             panelRt.anchorMax = Vector2.one;
             panelRt.sizeDelta = Vector2.zero;
 
-            // Borde cian
             var outline = panelBg.AddComponent<Outline>();
-            outline.effectColor = new Color(0f, 0.85f, 1f, 0.6f);
+            outline.effectColor = new Color(0f, 0.85f, 1f, 0.65f);
             outline.effectDistance = new Vector2(2f, 2f);
 
             // Título Principal
-            CreateText(hudGo.transform, "Title", "BANCO DE ANATOMIA TECNICA", 26, new Vector2(0f, 155f), new Vector2(850f, 45f), FontStyles.Bold, new Color(0f, 0.9f, 1f));
+            CreateText(hudGo.transform, "Title", "BANCO DE ANATOMIA TECNICA", 24, new Vector2(0f, 195f), new Vector2(950f, 35f), FontStyles.Bold, new Color(0f, 0.9f, 1f));
+
+            // Barra de Selección de Armas
+            CreateButton(hudGo.transform, "Btn_PrevWeapon", "< Anterior", new Vector2(-360f, 145f), new Vector2(160f, 40f), new Color(0.12f, 0.28f, 0.42f));
+            CreateText(hudGo.transform, "Txt_WeaponTitle", "PISTOLA COLT M1911 [.45 ACP]", 22, new Vector2(0f, 145f), new Vector2(520f, 40f), FontStyles.Bold, new Color(0.2f, 1f, 0.85f));
+            CreateButton(hudGo.transform, "Btn_NextWeapon", "Siguiente >", new Vector2(360f, 145f), new Vector2(160f, 40f), new Color(0.12f, 0.28f, 0.42f));
 
             // Contador de Paso
-            CreateText(hudGo.transform, "Txt_StepCounter", "PASO 1 DE 5", 22, new Vector2(0f, 110f), new Vector2(850f, 35f), FontStyles.Bold, new Color(1f, 0.85f, 0.3f));
+            CreateText(hudGo.transform, "Txt_StepCounter", "PASO 1 DE 5", 20, new Vector2(0f, 95f), new Vector2(850f, 32f), FontStyles.Bold, new Color(1f, 0.85f, 0.3f));
 
             // Título de la Pieza
-            CreateText(hudGo.transform, "Txt_StepTitle", "Acoplar: Armazón (Frame)", 24, new Vector2(0f, 65f), new Vector2(850f, 40f), FontStyles.Bold, Color.white);
+            CreateText(hudGo.transform, "Txt_StepTitle", "Acoplar: Armazón (Frame)", 23, new Vector2(0f, 55f), new Vector2(850f, 38f), FontStyles.Bold, Color.white);
 
             // Descripción Técnica / Función
-            CreateText(hudGo.transform, "Txt_StepDescription", "Aloja el cargador, el mecanismo de disparo y sirve de guía longitudinal para la corredera.", 18, new Vector2(0f, 5f), new Vector2(820f, 65f), FontStyles.Normal, new Color(0.85f, 0.9f, 0.95f));
+            CreateText(hudGo.transform, "Txt_StepDescription", "Aloja el cargador, el mecanismo de disparo y sirve de guía longitudinal para la corredera.", 17, new Vector2(0f, 0f), new Vector2(880f, 60f), FontStyles.Normal, new Color(0.85f, 0.92f, 0.96f));
 
             // Pista de Controles
-            CreateText(hudGo.transform, "Txt_ControlsHint", "VR: Agarra con Grip/Trigger y acopla al holograma | PC: Clic izquierdo arrastrar", 16, new Vector2(0f, -60f), new Vector2(850f, 35f), FontStyles.Italic, new Color(0.4f, 0.85f, 1f));
+            CreateText(hudGo.transform, "Txt_ControlsHint", "[W,A,S,D] Moverse | [Clic/E] Agarrar | [1-4] Cambiar Arma | [Tab] Alternar Cursor", 15, new Vector2(0f, -55f), new Vector2(950f, 32f), FontStyles.Italic, new Color(0.4f, 0.88f, 1f));
 
             // Panel de Finalización (Oculto al inicio)
             var completionPanel = new GameObject("Panel_Completion");
             completionPanel.transform.SetParent(hudGo.transform, false);
             var compImg = completionPanel.AddComponent<Image>();
-            compImg.color = new Color(0.02f, 0.16f, 0.12f, 0.95f);
+            compImg.color = new Color(0.02f, 0.16f, 0.12f, 0.96f);
             var compRt = completionPanel.GetComponent<RectTransform>();
             compRt.anchorMin = Vector2.zero;
             compRt.anchorMax = Vector2.one;
             compRt.sizeDelta = Vector2.zero;
 
             var compOutline = completionPanel.AddComponent<Outline>();
-            compOutline.effectColor = new Color(0.1f, 1f, 0.5f, 0.8f);
+            compOutline.effectColor = new Color(0.1f, 1f, 0.5f, 0.85f);
             compOutline.effectDistance = new Vector2(3f, 3f);
 
-            CreateText(completionPanel.transform, "Txt_CompletionTitle", "[!] APRENDIZAJE MECANICO VALIDADO\nAcceso al Poligono de Tiro Desbloqueado", 26, new Vector2(0f, 75f), new Vector2(840f, 85f), FontStyles.Bold, new Color(0.2f, 1f, 0.5f));
+            CreateText(completionPanel.transform, "Txt_CompletionTitle", "[!] APRENDIZAJE MECANICO VALIDADO\nAcceso al Poligono de Tiro Desbloqueado", 26, new Vector2(0f, 75f), new Vector2(900f, 85f), FontStyles.Bold, new Color(0.2f, 1f, 0.5f));
 
             CreateButton(completionPanel.transform, "Btn_ProceedToShootingRange", "Acceder al Poligono de Tiro >", new Vector2(0f, -25f), new Vector2(480f, 55f), new Color(0.1f, 0.65f, 0.35f));
-            CreateButton(completionPanel.transform, "Btn_ResetAssembly", "Reiniciar Practica de Ensamble", new Vector2(0f, -95f), new Vector2(380f, 45f), new Color(0.2f, 0.3f, 0.4f));
+            CreateButton(completionPanel.transform, "Btn_ResetAssembly", "Reiniciar Ensamble de este Arma", new Vector2(0f, -95f), new Vector2(380f, 45f), new Color(0.2f, 0.3f, 0.4f));
 
             completionPanel.SetActive(false);
 
@@ -543,7 +432,7 @@ namespace VRRangeAcademy.Editor
             txtGo.transform.SetParent(go.transform, false);
             var tmp = txtGo.AddComponent<TextMeshProUGUI>();
             tmp.text = label;
-            tmp.fontSize = 20;
+            tmp.fontSize = 18;
             tmp.fontStyle = FontStyles.Bold;
             tmp.color = Color.white;
             tmp.alignment = TextAlignmentOptions.Center;
@@ -561,7 +450,6 @@ namespace VRRangeAcademy.Editor
             var rigGo = new GameObject("XR_Assembly_PlayerRig");
             rigGo.transform.position = new Vector3(0f, 0f, 0f);
 
-            // CharacterController para colisiones y movimiento WASD
             var cc = rigGo.AddComponent<CharacterController>();
             cc.height = 1.8f;
             cc.center = new Vector3(0f, 0.9f, 0f);
@@ -603,7 +491,6 @@ namespace VRRangeAcademy.Editor
             go.transform.localPosition = localPos;
             go.transform.localRotation = localRot;
 
-            // Cuerpo / Mango del mando Oculus Touch
             var handle = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             handle.name = "Touch_Handle";
             handle.transform.SetParent(go.transform, false);
@@ -612,7 +499,6 @@ namespace VRRangeAcademy.Editor
             handle.GetComponent<MeshRenderer>().sharedMaterial = mat;
             Object.DestroyImmediate(handle.GetComponent<Collider>());
 
-            // Aro de seguimiento característico Oculus Quest / Touch
             var ring = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             ring.name = "Touch_TrackingRing";
             ring.transform.SetParent(go.transform, false);
@@ -622,7 +508,6 @@ namespace VRRangeAcademy.Editor
             ring.GetComponent<MeshRenderer>().sharedMaterial = mat;
             Object.DestroyImmediate(ring.GetComponent<Collider>());
 
-            // Botón Grip lateral
             var grip = GameObject.CreatePrimitive(PrimitiveType.Cube);
             grip.name = "Touch_GripTrigger";
             grip.transform.SetParent(go.transform, false);
@@ -635,28 +520,27 @@ namespace VRRangeAcademy.Editor
             return go;
         }
 
-        private static void ConfigureManager(Assembly.WeaponAssemblyManager manager, List<Assembly.AssemblyPiece> pieces, GameObject holoGun, Assembly.GuidanceArrow arrow, GameObject hudCanvas)
+        private static void ConfigureManager(Assembly.WeaponAssemblyManager manager, Transform piecesParent, Transform holoParent, Assembly.GuidanceArrow arrow, GameObject hudCanvas, Material matGun, Material matHolo, Material matSocketGlow)
         {
             var so = new SerializedObject(manager);
 
-            // Lista de piezas
-            var piecesProp = so.FindProperty("assemblyPieces");
-            piecesProp.ClearArray();
-            for (int i = 0; i < pieces.Count; i++)
-            {
-                piecesProp.InsertArrayElementAtIndex(i);
-                piecesProp.GetArrayElementAtIndex(i).objectReferenceValue = pieces[i];
-            }
-
-            // Referencias
+            so.FindProperty("piecesContainer").objectReferenceValue = piecesParent;
+            so.FindProperty("hologramContainer").objectReferenceValue = holoParent;
             so.FindProperty("guidanceArrow").objectReferenceValue = arrow;
-            so.FindProperty("holographicGhostGun").objectReferenceValue = holoGun;
+
+            so.FindProperty("gunMaterial").objectReferenceValue = matGun;
+            so.FindProperty("hologramMaterial").objectReferenceValue = matHolo;
+            so.FindProperty("socketGlowMaterial").objectReferenceValue = matSocketGlow;
 
             // UI Elements
+            so.FindProperty("txtWeaponTitle").objectReferenceValue = hudCanvas.transform.Find("Txt_WeaponTitle").GetComponent<TextMeshProUGUI>();
             so.FindProperty("txtStepCounter").objectReferenceValue = hudCanvas.transform.Find("Txt_StepCounter").GetComponent<TextMeshProUGUI>();
             so.FindProperty("txtStepTitle").objectReferenceValue = hudCanvas.transform.Find("Txt_StepTitle").GetComponent<TextMeshProUGUI>();
             so.FindProperty("txtStepDescription").objectReferenceValue = hudCanvas.transform.Find("Txt_StepDescription").GetComponent<TextMeshProUGUI>();
             so.FindProperty("txtControlsHint").objectReferenceValue = hudCanvas.transform.Find("Txt_ControlsHint").GetComponent<TextMeshProUGUI>();
+
+            so.FindProperty("btnPrevWeapon").objectReferenceValue = hudCanvas.transform.Find("Btn_PrevWeapon").GetComponent<Button>();
+            so.FindProperty("btnNextWeapon").objectReferenceValue = hudCanvas.transform.Find("Btn_NextWeapon").GetComponent<Button>();
 
             var compPanel = hudCanvas.transform.Find("Panel_Completion").gameObject;
             so.FindProperty("panelCompletion").objectReferenceValue = compPanel;
@@ -665,6 +549,10 @@ namespace VRRangeAcademy.Editor
             so.FindProperty("btnResetAssembly").objectReferenceValue = compPanel.transform.Find("Btn_ResetAssembly").GetComponent<Button>();
 
             so.ApplyModifiedProperties();
+
+            // Cargar arma inicial M1911 en modo edición para que se vea en el Scene View
+            manager.ForceReinitializeDefaultWeapons();
+            manager.LoadWeapon(0);
         }
 
         private static GameObject InstantiateMeshProp(string fbxPath, string meshName, Vector3 pos, Quaternion rot, Vector3 scale, Material mat, Transform parent)
@@ -701,8 +589,52 @@ namespace VRRangeAcademy.Editor
             return go;
         }
 
+        private static GameObject InstantiateWeaponOrnament(string fbxPath, Vector3 pos, Quaternion rot, float scale, Material mat, Transform parent)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(fbxPath);
+            if (prefab == null) return null;
+
+            var go = Object.Instantiate(prefab, parent);
+            go.name = "Decor_" + prefab.name;
+            go.transform.position = pos;
+            go.transform.rotation = rot;
+            go.transform.localScale = Vector3.one * scale;
+
+            // Asegurar que las armas decorativas no tengan colliders ni rigidbodies
+            foreach (var col in go.GetComponentsInChildren<Collider>())
+            {
+                Object.DestroyImmediate(col);
+            }
+            foreach (var rb in go.GetComponentsInChildren<Rigidbody>())
+            {
+                Object.DestroyImmediate(rb);
+            }
+            foreach (var mr in go.GetComponentsInChildren<MeshRenderer>())
+            {
+                if (mat != null) mr.sharedMaterial = mat;
+            }
+
+            return go;
+        }
+
         private static Material CreateMaterial(string name, Color color, float smoothness, float metallic)
         {
+            var path = $"Assets/Materials/{name}.mat";
+            var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (existing != null)
+            {
+                if (existing.shader == null || existing.shader.name == "Hidden/InternalErrorShader" || !existing.shader.name.Contains("Universal Render Pipeline"))
+                {
+                    existing.shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+                }
+                existing.color = color;
+                if (existing.HasProperty("_BaseColor")) existing.SetColor("_BaseColor", color);
+                if (existing.HasProperty("_Smoothness")) existing.SetFloat("_Smoothness", smoothness);
+                if (existing.HasProperty("_Metallic")) existing.SetFloat("_Metallic", metallic);
+                EditorUtility.SetDirty(existing);
+                return existing;
+            }
+
             var shader = Shader.Find("Universal Render Pipeline/Lit");
             if (shader == null) shader = Shader.Find("Standard");
             var mat = new Material(shader);
@@ -712,7 +644,6 @@ namespace VRRangeAcademy.Editor
             if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", smoothness);
             if (mat.HasProperty("_Metallic")) mat.SetFloat("_Metallic", metallic);
 
-            var path = $"Assets/Materials/{name}.mat";
             EnsureDirectory("Assets/Materials");
             AssetDatabase.CreateAsset(mat, path);
             return mat;
@@ -720,6 +651,20 @@ namespace VRRangeAcademy.Editor
 
         private static Material CreateHologramMaterial(string name, Color cyanGlow)
         {
+            var path = $"Assets/Materials/{name}.mat";
+            var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (existing != null)
+            {
+                if (existing.shader == null || existing.shader.name == "Hidden/InternalErrorShader" || !existing.shader.name.Contains("Universal Render Pipeline"))
+                {
+                    existing.shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
+                }
+                existing.color = cyanGlow;
+                if (existing.HasProperty("_BaseColor")) existing.SetColor("_BaseColor", cyanGlow);
+                EditorUtility.SetDirty(existing);
+                return existing;
+            }
+
             var shader = Shader.Find("Universal Render Pipeline/Unlit");
             if (shader == null) shader = Shader.Find("Sprites/Default");
             var mat = new Material(shader);
@@ -727,7 +672,6 @@ namespace VRRangeAcademy.Editor
             mat.color = cyanGlow;
             if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", cyanGlow);
 
-            // Configurar blend mode transparente
             mat.SetFloat("_Surface", 1); // Transparent
             mat.SetFloat("_Blend", 0); // Alpha
             mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
@@ -735,7 +679,6 @@ namespace VRRangeAcademy.Editor
             mat.SetInt("_ZWrite", 0);
             mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
 
-            var path = $"Assets/Materials/{name}.mat";
             EnsureDirectory("Assets/Materials");
             AssetDatabase.CreateAsset(mat, path);
             return mat;
@@ -764,7 +707,7 @@ namespace VRRangeAcademy.Editor
             var scenes = new List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);
             foreach (var s in scenes)
             {
-                if (s.path == scenePath) return; // Ya existe
+                if (s.path == scenePath) return;
             }
             scenes.Insert(1, new EditorBuildSettingsScene(scenePath, true));
             EditorBuildSettings.scenes = scenes.ToArray();

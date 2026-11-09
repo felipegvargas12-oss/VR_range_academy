@@ -191,9 +191,23 @@ namespace VRRangeAcademy.Assembly
             }
         }
 
+        public void DropHeldPiece()
+        {
+            if (heldPiece != null)
+            {
+                heldPiece.Release();
+                heldPiece = null;
+            }
+            hoveredPiece = null;
+        }
+
         private void UpdateHeldPiecePosition()
         {
-            if (heldPiece == null || playerCamera == null) return;
+            if (heldPiece == null || heldPiece.gameObject == null || !heldPiece.gameObject.activeInHierarchy || playerCamera == null)
+            {
+                heldPiece = null;
+                return;
+            }
 
             // Si la pieza se acopló en este frame, liberarla automáticamente
             if (heldPiece.IsSnapped)

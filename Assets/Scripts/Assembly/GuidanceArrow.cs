@@ -29,23 +29,32 @@ namespace VRRangeAcademy.Assembly
 
         private void Awake()
         {
-            lineRenderer = GetComponent<LineRenderer>();
+            if (lineRenderer == null) lineRenderer = GetComponent<LineRenderer>();
             ConfigureLineRenderer();
+            SetVisible(false);
         }
 
         private void ConfigureLineRenderer()
         {
+            if (lineRenderer == null) lineRenderer = GetComponent<LineRenderer>();
             lineRenderer.useWorldSpace = true;
             lineRenderer.positionCount = resolution;
-            lineRenderer.startWidth = 0.025f;
-            lineRenderer.endWidth = 0.045f;
+            lineRenderer.startWidth = 0.015f;
+            lineRenderer.endWidth = 0.035f;
 
-            // Shader URP Lit o Unlit
-            var shader = Shader.Find("Universal Render Pipeline/Unlit");
-            if (shader == null) shader = Shader.Find("Sprites/Default");
-            lineMaterial = new Material(shader);
-            lineMaterial.color = glowColor;
-            lineRenderer.material = lineMaterial;
+            if (lineRenderer.sharedMaterial != null)
+            {
+                lineMaterial = lineRenderer.material;
+            }
+            else
+            {
+                var shader = Shader.Find("Universal Render Pipeline/Unlit");
+                if (shader == null) shader = Shader.Find("Sprites/Default");
+                lineMaterial = new Material(shader);
+                if (lineMaterial.HasProperty("_BaseColor")) lineMaterial.SetColor("_BaseColor", glowColor);
+                lineMaterial.color = glowColor;
+                lineRenderer.material = lineMaterial;
+            }
 
             // Gradiente
             var gradient = new Gradient();

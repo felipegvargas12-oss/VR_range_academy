@@ -4,26 +4,62 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
+using UnityEngine.InputSystem;
 using TMPro;
 
 namespace VRRangeAcademy.Assembly
 {
+    [Serializable]
+    public class WeaponPartData
+    {
+        public string partId;
+        public string displayName;
+        public string meshName;
+        public string functionDescription;
+        public Vector3 tableLocalPos;
+        public Vector3 tableLocalRot;
+        public Vector3 socketLocalPos;
+        public Vector3 socketLocalRot;
+        public Vector3 scale = Vector3.one;
+    }
+
+    [Serializable]
+    public class WeaponData
+    {
+        public string weaponId;
+        public string weaponName;
+        public string caliber;
+        public string fbxPath;
+        public float modelScale = 1.8f;
+        public Vector3 hologramOffset = new Vector3(0f, 1.48f, 1.42f);
+        public Vector3 hologramEuler = new Vector3(0f, 85f, -8f);
+        public List<WeaponPartData> parts = new List<WeaponPartData>();
+    }
+
     public class WeaponAssemblyManager : MonoBehaviour
     {
-        [Header("Configuración de Piezas")]
-        [SerializeField] private List<AssemblyPiece> assemblyPieces = new List<AssemblyPiece>();
-        [SerializeField] private List<Transform> holographicSockets = new List<Transform>();
+        [Header("Definición de Armas")]
+        [SerializeField] private List<WeaponData> availableWeapons = new List<WeaponData>();
+        [SerializeField] private int currentWeaponIndex = 0;
 
-        [Header("Guía Visual")]
+        [Header("Contenedores de Escena")]
+        [SerializeField] private Transform piecesContainer;
+        [SerializeField] private Transform hologramContainer;
         [SerializeField] private GuidanceArrow guidanceArrow;
-        [SerializeField] private GameObject holographicGhostGun;
-        [SerializeField] private GameObject fullyAssembledGun;
 
-        [Header("UI Holográfica / HUD de Banco")]
+        [Header("Materiales")]
+        [SerializeField] private Material gunMaterial;
+        [SerializeField] private Material hologramMaterial;
+        [SerializeField] private Material socketGlowMaterial;
+
+        [Header("UI Holográfica / HUD")]
+        [SerializeField] private TextMeshProUGUI txtWeaponTitle;
         [SerializeField] private TextMeshProUGUI txtStepCounter;
         [SerializeField] private TextMeshProUGUI txtStepTitle;
         [SerializeField] private TextMeshProUGUI txtStepDescription;
         [SerializeField] private TextMeshProUGUI txtControlsHint;
+        [SerializeField] private Button btnPrevWeapon;
+        [SerializeField] private Button btnNextWeapon;
         [SerializeField] private GameObject panelCompletion;
         [SerializeField] private TextMeshProUGUI txtCompletionTitle;
         [SerializeField] private Button btnProceedToShootingRange;
@@ -35,69 +71,302 @@ namespace VRRangeAcademy.Assembly
         [SerializeField] private AudioClip slideRackClip;
         [SerializeField] private AudioClip completionChimeClip;
 
-        [Header("Transición de Escena")]
+        [Header("Escena Siguiente")]
         [SerializeField] private string shootingRangeSceneName = "ShootingRange";
-        [SerializeField] private string mainMenuSceneName = "MainMenu";
 
+        private List<AssemblyPiece> activePieces = new List<AssemblyPiece>();
         private int currentStepIndex = 0;
         private int totalSnappedCount = 0;
         private bool isAssemblyCompleted = false;
 
         public bool IsCompleted => isAssemblyCompleted;
+        public int CurrentWeaponIndex => currentWeaponIndex;
 
-        private void Start()
+        private void Awake()
         {
             if (audioSource == null)
             {
                 audioSource = gameObject.AddComponent<AudioSource>();
             }
 
-            // Generar clips de sonido mecánicos procedurales si no están asignados
             if (snapClip == null) snapClip = CreateMechanicalSnapClip();
             if (slideRackClip == null) slideRackClip = CreateSlideRackClip();
             if (completionChimeClip == null) completionChimeClip = CreateCompletionChimeClip();
 
-            // Ocultar arma ensamblada final al inicio
-            if (fullyAssembledGun != null)
-            {
-                fullyAssembledGun.SetActive(false);
-            }
+            InitializeDefaultWeaponsIfEmpty();
+        }
 
-            if (panelCompletion != null)
-            {
-                panelCompletion.SetActive(false);
-            }
+        private void Start()
+        {
+            HookUI();
+            LoadWeapon(currentWeaponIndex);
+        }
 
-            if (btnProceedToShootingRange != null)
-            {
-                btnProceedToShootingRange.onClick.AddListener(OnProceedToShootingRange);
-            }
+        private void Update()
+        {
+            HandleKeyboardWeaponSwitch();
+        }
 
-            if (btnResetAssembly != null)
-            {
-                btnResetAssembly.onClick.AddListener(ResetAssembly);
-            }
+        private void HandleKeyboardWeaponSwitch()
+        {
+            if (Keyboard.current == null) return;
 
-            // Suscribirse a eventos de cada pieza
-            for (int i = 0; i < assemblyPieces.Count; i++)
+            if (Keyboard.current.digit1Key.wasPressedThisFrame) SwitchWeapon(0);
+            if (Keyboard.current.digit2Key.wasPressedThisFrame) SwitchWeapon(1);
+            if (Keyboard.current.digit3Key.wasPressedThisFrame) SwitchWeapon(2);
+            if (Keyboard.current.digit4Key.wasPressedThisFrame) SwitchWeapon(3);
+
+            if (Keyboard.current.leftArrowKey.wasPressedThisFrame || Keyboard.current.qKey.wasPressedThisFrame)
             {
-                var piece = assemblyPieces[i];
-                if (piece != null)
+                OnPrevWeaponClicked();
+            }
+            if (Keyboard.current.rightArrowKey.wasPressedThisFrame || Keyboard.current.rKey.wasPressedThisFrame)
+            {
+                OnNextWeaponClicked();
+            }
+        }
+
+        private void HookUI()
+        {
+            if (btnPrevWeapon != null) btnPrevWeapon.onClick.AddListener(OnPrevWeaponClicked);
+            if (btnNextWeapon != null) btnNextWeapon.onClick.AddListener(OnNextWeaponClicked);
+            if (btnProceedToShootingRange != null) btnProceedToShootingRange.onClick.AddListener(OnProceedToShootingRange);
+            if (btnResetAssembly != null) btnResetAssembly.onClick.AddListener(ResetAssembly);
+        }
+
+        public void OnPrevWeaponClicked()
+        {
+            if (availableWeapons.Count == 0) return;
+            int nextIdx = (currentWeaponIndex - 1 + availableWeapons.Count) % availableWeapons.Count;
+            SwitchWeapon(nextIdx);
+        }
+
+        public void OnNextWeaponClicked()
+        {
+            if (availableWeapons.Count == 0) return;
+            int nextIdx = (currentWeaponIndex + 1) % availableWeapons.Count;
+            SwitchWeapon(nextIdx);
+        }
+
+        public void SwitchWeapon(int index)
+        {
+            if (index < 0 || index >= availableWeapons.Count) return;
+            currentWeaponIndex = index;
+            PlaySound(snapClip, 1.2f);
+            LoadWeapon(currentWeaponIndex);
+        }
+
+        public void LoadWeapon(int weaponIndex)
+        {
+            if (weaponIndex < 0 || weaponIndex >= availableWeapons.Count) return;
+            var w = availableWeapons[weaponIndex];
+
+            StopAllCoroutines();
+            isAssemblyCompleted = false;
+            totalSnappedCount = 0;
+            currentStepIndex = 0;
+
+            if (panelCompletion != null) panelCompletion.SetActive(false);
+
+            // 1. Limpiar piezas y holograma anteriores
+            ClearActiveAssembly();
+
+            // 2. Construir Holograma de Referencia y Sockets
+            BuildWeaponHologram(w);
+
+            // 3. Generar Piezas Físicas en la Mesa
+            BuildWeaponPiecesOnTable(w);
+
+            // 4. Actualizar UI y Flecha
+            UpdateWeaponHeaderUI(w);
+            UpdateStepUI();
+            UpdateGuidanceArrow();
+        }
+
+        private void ClearActiveAssembly()
+        {
+            var player = UnityEngine.Object.FindAnyObjectByType<AssemblyPlayerController>();
+            if (player != null) player.DropHeldPiece();
+
+            foreach (var p in activePieces)
+            {
+                if (p != null)
                 {
-                    piece.OnSnapped += HandlePieceSnapped;
-                    piece.OnGrabbed += HandlePieceGrabbed;
+                    p.OnSnapped -= HandlePieceSnapped;
+                    p.OnGrabbed -= HandlePieceGrabbed;
+                    p.gameObject.SetActive(false);
+                    if (Application.isPlaying)
+                    {
+                        p.transform.SetParent(null);
+                        Destroy(p.gameObject);
+                    }
+                    else
+                    {
+                        DestroyImmediate(p.gameObject);
+                    }
+                }
+            }
+            activePieces.Clear();
+
+            if (piecesContainer != null)
+            {
+                for (int i = piecesContainer.childCount - 1; i >= 0; i--)
+                {
+                    var child = piecesContainer.GetChild(i).gameObject;
+                    child.SetActive(false);
+                    if (Application.isPlaying)
+                    {
+                        child.transform.SetParent(null);
+                        Destroy(child);
+                    }
+                    else
+                    {
+                        DestroyImmediate(child);
+                    }
                 }
             }
 
-            UpdateStepUI();
-            UpdateGuidanceArrow();
+            if (hologramContainer != null)
+            {
+                for (int i = hologramContainer.childCount - 1; i >= 0; i--)
+                {
+                    var child = hologramContainer.GetChild(i).gameObject;
+                    child.SetActive(false);
+                    if (Application.isPlaying)
+                    {
+                        child.transform.SetParent(null);
+                        Destroy(child);
+                    }
+                    else
+                    {
+                        DestroyImmediate(child);
+                    }
+                }
+            }
+
+            totalSnappedCount = 0;
+            currentStepIndex = 0;
+            isAssemblyCompleted = false;
+        }
+
+        private void BuildWeaponHologram(WeaponData w)
+        {
+            if (hologramContainer == null) return;
+
+            hologramContainer.position = w.hologramOffset;
+            hologramContainer.rotation = Quaternion.Euler(w.hologramEuler);
+            hologramContainer.localScale = Vector3.one * w.modelScale;
+
+            // Cargar modelo FBX
+            var prefab = Resources.Load<GameObject>(w.weaponId) ?? UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(w.fbxPath);
+            if (prefab != null)
+            {
+                var ghost = Instantiate(prefab, hologramContainer);
+                ghost.name = "Ghost_" + w.weaponId;
+                ghost.transform.localPosition = Vector3.zero;
+                ghost.transform.localRotation = Quaternion.identity;
+                ghost.transform.localScale = Vector3.one;
+
+                foreach (var mr in ghost.GetComponentsInChildren<MeshRenderer>())
+                {
+                    mr.sharedMaterial = hologramMaterial;
+                }
+                foreach (var col in ghost.GetComponentsInChildren<Collider>())
+                {
+                    Destroy(col);
+                }
+            }
+
+            // Crear Sockets para cada pieza
+            foreach (var part in w.parts)
+            {
+                var socketGo = new GameObject("Socket_" + part.partId);
+                socketGo.transform.SetParent(hologramContainer, false);
+                socketGo.transform.localPosition = part.socketLocalPos;
+                socketGo.transform.localRotation = Quaternion.Euler(part.socketLocalRot);
+
+                // Anclaje luminoso
+                var sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                sphere.name = "Anchor_Glow";
+                sphere.transform.SetParent(socketGo.transform, false);
+                sphere.transform.localPosition = Vector3.zero;
+                sphere.transform.localScale = Vector3.one * 0.02f;
+                Destroy(sphere.GetComponent<Collider>());
+                if (socketGlowMaterial != null)
+                {
+                    sphere.GetComponent<MeshRenderer>().sharedMaterial = socketGlowMaterial;
+                }
+            }
+        }
+
+        private void BuildWeaponPiecesOnTable(WeaponData w)
+        {
+            if (piecesContainer == null) return;
+
+            var prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(w.fbxPath);
+
+            foreach (var part in w.parts)
+            {
+                var pieceGo = new GameObject("Piece_" + part.partId);
+                pieceGo.transform.SetParent(piecesContainer, false);
+                pieceGo.transform.localPosition = part.tableLocalPos;
+                pieceGo.transform.localRotation = Quaternion.Euler(part.tableLocalRot);
+                pieceGo.transform.localScale = Vector3.one * w.modelScale;
+
+                var mf = pieceGo.AddComponent<MeshFilter>();
+                var mr = pieceGo.AddComponent<MeshRenderer>();
+                mr.sharedMaterial = gunMaterial;
+
+                // Buscar la submalla correspondiente
+                var mesh = FindSubmesh(w.fbxPath, part.meshName);
+                if (mesh != null) mf.sharedMesh = mesh;
+
+                // Collider
+                var col = pieceGo.AddComponent<BoxCollider>();
+                Vector3 sz = col.size;
+                sz.x = Mathf.Max(sz.x, 0.08f);
+                sz.y = Mathf.Max(sz.y, 0.08f);
+                sz.z = Mathf.Max(sz.z, 0.08f);
+                col.size = sz;
+
+                // Rigidbody
+                var rb = pieceGo.AddComponent<Rigidbody>();
+                rb.mass = 0.5f;
+                rb.isKinematic = true;
+                rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
+
+                // AssemblyPiece component
+                var pieceComp = pieceGo.AddComponent<AssemblyPiece>();
+                pieceComp.pieceId = part.partId;
+                pieceComp.displayName = part.displayName;
+                pieceComp.functionDescription = part.functionDescription;
+                pieceComp.snapThresholdDistance = 0.22f;
+
+                // Vincular su socket de destino
+                var socketTrans = hologramContainer.Find("Socket_" + part.partId);
+                pieceComp.targetSocket = socketTrans;
+                pieceComp.SetInitialTransform(pieceGo.transform.position, pieceGo.transform.rotation);
+
+                pieceComp.OnSnapped += HandlePieceSnapped;
+                pieceComp.OnGrabbed += HandlePieceGrabbed;
+
+                activePieces.Add(pieceComp);
+            }
+        }
+
+        private Mesh FindSubmesh(string fbxPath, string meshName)
+        {
+            var assets = UnityEditor.AssetDatabase.LoadAllAssetsAtPath(fbxPath);
+            foreach (var a in assets)
+            {
+                if (a is Mesh m && m.name == meshName) return m;
+            }
+            return null;
         }
 
         private void HandlePieceGrabbed(AssemblyPiece piece)
         {
             if (piece == null || isAssemblyCompleted) return;
-
-            // Si el usuario agarra una pieza, orientar la flecha hacia su socket
             if (guidanceArrow != null && piece.targetSocket != null)
             {
                 guidanceArrow.SetTargets(piece.transform, piece.targetSocket);
@@ -108,17 +377,13 @@ namespace VRRangeAcademy.Assembly
         private void HandlePieceSnapped(AssemblyPiece piece)
         {
             totalSnappedCount++;
-
-            // Audio de confirmación
             PlaySound(snapClip, 1.0f);
 
-            // Determinar siguiente paso pendiente
             FindNextPendingStep();
-
             UpdateStepUI();
             UpdateGuidanceArrow();
 
-            if (totalSnappedCount >= assemblyPieces.Count)
+            if (totalSnappedCount >= activePieces.Count)
             {
                 StartCoroutine(CompleteAssemblySequence());
             }
@@ -126,27 +391,35 @@ namespace VRRangeAcademy.Assembly
 
         private void FindNextPendingStep()
         {
-            for (int i = 0; i < assemblyPieces.Count; i++)
+            for (int i = 0; i < activePieces.Count; i++)
             {
-                if (assemblyPieces[i] != null && !assemblyPieces[i].IsSnapped)
+                if (activePieces[i] != null && !activePieces[i].IsSnapped)
                 {
                     currentStepIndex = i;
                     return;
                 }
             }
-            currentStepIndex = assemblyPieces.Count;
+            currentStepIndex = activePieces.Count;
+        }
+
+        private void UpdateWeaponHeaderUI(WeaponData w)
+        {
+            if (txtWeaponTitle != null)
+            {
+                txtWeaponTitle.text = $"{w.weaponName.ToUpper()}  [{w.caliber}]";
+            }
         }
 
         private void UpdateStepUI()
         {
             if (isAssemblyCompleted) return;
 
-            if (currentStepIndex < assemblyPieces.Count)
+            if (currentStepIndex < activePieces.Count)
             {
-                var cur = assemblyPieces[currentStepIndex];
+                var cur = activePieces[currentStepIndex];
                 if (txtStepCounter != null)
                 {
-                    txtStepCounter.text = $"PASO {totalSnappedCount + 1} DE {assemblyPieces.Count}";
+                    txtStepCounter.text = $"PASO {totalSnappedCount + 1} DE {activePieces.Count}";
                 }
                 if (txtStepTitle != null)
                 {
@@ -158,7 +431,7 @@ namespace VRRangeAcademy.Assembly
                 }
                 if (txtControlsHint != null)
                 {
-                    txtControlsHint.text = "VR: Mantener Grip/Trigger | PC: Clic izquierdo y arrastrar hacia el holograma";
+                    txtControlsHint.text = "[W,A,S,D] Moverse | [Clic/E] Agarrar | [1-4] Cambiar Arma | [Tab] Alternar Cursor";
                 }
             }
         }
@@ -167,13 +440,13 @@ namespace VRRangeAcademy.Assembly
         {
             if (guidanceArrow == null) return;
 
-            if (isAssemblyCompleted || currentStepIndex >= assemblyPieces.Count)
+            if (isAssemblyCompleted || currentStepIndex >= activePieces.Count)
             {
                 guidanceArrow.SetVisible(false);
                 return;
             }
 
-            var nextPiece = assemblyPieces[currentStepIndex];
+            var nextPiece = activePieces[currentStepIndex];
             if (nextPiece != null && nextPiece.targetSocket != null)
             {
                 guidanceArrow.SetTargets(nextPiece.transform, nextPiece.targetSocket);
@@ -188,36 +461,19 @@ namespace VRRangeAcademy.Assembly
         private IEnumerator CompleteAssemblySequence()
         {
             isAssemblyCompleted = true;
-
-            if (guidanceArrow != null)
-            {
-                guidanceArrow.SetVisible(false);
-            }
+            if (guidanceArrow != null) guidanceArrow.SetVisible(false);
 
             yield return new WaitForSeconds(0.4f);
-
-            // Sonido de rastrillar la corredera (slide rack)
             PlaySound(slideRackClip, 1.0f);
 
             yield return new WaitForSeconds(0.6f);
-
-            // Campanada / Fanfarria de éxito
             PlaySound(completionChimeClip, 1.2f);
 
-            // Activar modelo final ensamblado si existe
-            if (fullyAssembledGun != null)
-            {
-                fullyAssembledGun.SetActive(true);
-            }
-
-            if (panelCompletion != null)
-            {
-                panelCompletion.SetActive(true);
-            }
-
+            if (panelCompletion != null) panelCompletion.SetActive(true);
             if (txtCompletionTitle != null)
             {
-                txtCompletionTitle.text = "[!] APRENDIZAJE MECANICO VALIDADO\nAcceso al Poligono de Tiro Desbloqueado";
+                var curW = availableWeapons[currentWeaponIndex];
+                txtCompletionTitle.text = $"[!] ENSAMBLAJE DE {curW.weaponName.ToUpper()} COMPLETADO\nAcceso al Polígono de Tiro Desbloqueado";
             }
         }
 
@@ -229,21 +485,7 @@ namespace VRRangeAcademy.Assembly
 
         public void ResetAssembly()
         {
-            StopAllCoroutines();
-            isAssemblyCompleted = false;
-            totalSnappedCount = 0;
-            currentStepIndex = 0;
-
-            if (panelCompletion != null) panelCompletion.SetActive(false);
-            if (fullyAssembledGun != null) fullyAssembledGun.SetActive(false);
-
-            foreach (var piece in assemblyPieces)
-            {
-                if (piece != null) piece.ResetToTable();
-            }
-
-            UpdateStepUI();
-            UpdateGuidanceArrow();
+            LoadWeapon(currentWeaponIndex);
         }
 
         private void PlaySound(AudioClip clip, float pitch = 1.0f)
@@ -255,16 +497,191 @@ namespace VRRangeAcademy.Assembly
             }
         }
 
+        #region Weapons Data Initialization
+        public void ForceReinitializeDefaultWeapons()
+        {
+            availableWeapons.Clear();
+            InitializeDefaultWeaponsIfEmpty();
+        }
+
+        public void InitializeDefaultWeaponsIfEmpty()
+        {
+            if (availableWeapons.Count > 0) return;
+
+            // 1. M1911 Pistol
+            var m1911 = new WeaponData {
+                weaponId = "M1911",
+                weaponName = "Pistola Colt M1911",
+                caliber = ".45 ACP",
+                fbxPath = "Assets/Low Poly Weapons VOL.1/Models/M1911.fbx",
+                modelScale = 1.9f,
+                hologramOffset = new Vector3(0f, 1.48f, 1.42f),
+                hologramEuler = new Vector3(0f, 85f, -8f)
+            };
+            m1911.parts.Add(new WeaponPartData {
+                partId = "Frame", displayName = "Armazón (Frame)", meshName = "M1911",
+                functionDescription = "Estructura principal que aloja el cargador, gatillo y guías de corredera.",
+                tableLocalPos = new Vector3(-0.05f, 1.075f, 0.06f), tableLocalRot = new Vector3(0f, 90f, 90f),
+                socketLocalPos = Vector3.zero, socketLocalRot = Vector3.zero
+            });
+            m1911.parts.Add(new WeaponPartData {
+                partId = "Slide", displayName = "Corredera (Slide)", meshName = "Slide",
+                functionDescription = "Aloja la aguja percutora, extrae vainas y alimenta nuevos cartuchos.",
+                tableLocalPos = new Vector3(-0.45f, 1.075f, 0.06f), tableLocalRot = new Vector3(0f, 90f, 90f),
+                socketLocalPos = new Vector3(0f, 0.01f, -0.14f), socketLocalRot = Vector3.zero
+            });
+            m1911.parts.Add(new WeaponPartData {
+                partId = "Trigger", displayName = "Gatillo (Trigger)", meshName = "Trigger",
+                functionDescription = "Acciona el fiador interno para liberar el martillo percutor.",
+                tableLocalPos = new Vector3(-0.15f, 1.075f, -0.14f), tableLocalRot = new Vector3(0f, 90f, 0f),
+                socketLocalPos = new Vector3(0f, -0.02f, -0.01f), socketLocalRot = Vector3.zero
+            });
+            m1911.parts.Add(new WeaponPartData {
+                partId = "Hammer", displayName = "Martillo (Hammer)", meshName = "Hammer",
+                functionDescription = "Transmite la energía cinética del resorte principal al percutor.",
+                tableLocalPos = new Vector3(0.12f, 1.13f, -0.14f), tableLocalRot = new Vector3(0f, 90f, 0f),
+                socketLocalPos = new Vector3(0f, 0.04f, 0.05f), socketLocalRot = Vector3.zero
+            });
+            m1911.parts.Add(new WeaponPartData {
+                partId = "Magazine", displayName = "Cargador (Magazine)", meshName = "Magazin",
+                functionDescription = "Almacena los cartuchos .45 ACP y los eleva hacia la recámara.",
+                tableLocalPos = new Vector3(0.42f, 1.075f, -0.02f), tableLocalRot = new Vector3(0f, 90f, 90f),
+                socketLocalPos = new Vector3(0f, -0.05f, 0.05f), socketLocalRot = new Vector3(339.32f, 0f, 0f)
+            });
+            availableWeapons.Add(m1911);
+
+            // 2. M4A1 Carbine
+            var m4 = new WeaponData {
+                weaponId = "M4A1",
+                weaponName = "Carabina M4A1",
+                caliber = "5.56x45mm NATO",
+                fbxPath = "Assets/Low Poly Weapons VOL.1/Models/M4_8.fbx",
+                modelScale = 1.35f,
+                hologramOffset = new Vector3(0f, 1.50f, 1.42f),
+                hologramEuler = new Vector3(0f, 85f, -8f)
+            };
+            m4.parts.Add(new WeaponPartData {
+                partId = "Receiver", displayName = "Cajón y Cañón (Upper & Lower)", meshName = "M4_8",
+                functionDescription = "Estructura central con cañón estriado, recámara y sistema de gases.",
+                tableLocalPos = new Vector3(0.00f, 1.075f, 0.10f), tableLocalRot = new Vector3(0f, 90f, 90f),
+                socketLocalPos = Vector3.zero, socketLocalRot = Vector3.zero
+            });
+            m4.parts.Add(new WeaponPartData {
+                partId = "Bolt", displayName = "Cerrojo Rotativo (Bolt Carrier)", meshName = "Bolt",
+                functionDescription = "Bloquea la recámara y extrae los casquillos disparados.",
+                tableLocalPos = new Vector3(-0.45f, 1.075f, -0.12f), tableLocalRot = new Vector3(0f, 90f, 0f),
+                socketLocalPos = new Vector3(0f, 0.08f, 0.16f), socketLocalRot = Vector3.zero
+            });
+            m4.parts.Add(new WeaponPartData {
+                partId = "Mag", displayName = "Cargador STANAG (30 Cartuchos)", meshName = "Mag",
+                functionDescription = "Cargador reglamentario de alta capacidad para munición 5.56 NATO.",
+                tableLocalPos = new Vector3(0.45f, 1.075f, -0.07f), tableLocalRot = new Vector3(0f, 90f, 90f),
+                socketLocalPos = Vector3.zero, socketLocalRot = Vector3.zero
+            });
+            m4.parts.Add(new WeaponPartData {
+                partId = "Sight", displayName = "Mira Frontal Táctica (Front Sight)", meshName = "Sight",
+                functionDescription = "Punto de mira frontal para adquisición rápida de objetivos.",
+                tableLocalPos = new Vector3(-0.35f, 1.075f, 0.13f), tableLocalRot = new Vector3(0f, 90f, 0f),
+                socketLocalPos = new Vector3(0f, 0.09f, -0.20f), socketLocalRot = new Vector3(270f, 0f, 0f)
+            });
+            m4.parts.Add(new WeaponPartData {
+                partId = "Trigger", displayName = "Mecanismo de Gatillo (Trigger)", meshName = "Trigger",
+                functionDescription = "Controla la cadencia de fuego y la liberación del martillo.",
+                tableLocalPos = new Vector3(0.15f, 1.075f, -0.16f), tableLocalRot = new Vector3(0f, 90f, 0f),
+                socketLocalPos = new Vector3(0f, 0.01f, 0.09f), socketLocalRot = Vector3.zero
+            });
+            availableWeapons.Add(m4);
+
+            // 3. AK-74 Assault Rifle
+            var ak74 = new WeaponData {
+                weaponId = "AK74",
+                weaponName = "Fusil de Asalto AK-74",
+                caliber = "5.45x39mm",
+                fbxPath = "Assets/Low Poly Weapons VOL.1/Models/AK74.fbx",
+                modelScale = 1.35f,
+                hologramOffset = new Vector3(0f, 1.50f, 1.42f),
+                hologramEuler = new Vector3(0f, 85f, -8f)
+            };
+            ak74.parts.Add(new WeaponPartData {
+                partId = "Receiver", displayName = "Cajón de Mecanismos y Cañón", meshName = "AK74",
+                functionDescription = "Estructura de acero forjado con cilindro de gases y culata de polímero.",
+                tableLocalPos = new Vector3(0.00f, 1.075f, 0.10f), tableLocalRot = new Vector3(0f, 90f, 90f),
+                socketLocalPos = Vector3.zero, socketLocalRot = Vector3.zero
+            });
+            ak74.parts.Add(new WeaponPartData {
+                partId = "Bolt", displayName = "Portacerrojo con Pistón de Gases", meshName = "Bolt",
+                functionDescription = "Pistón de carrera larga acoplado directamente al cerrojo rotativo.",
+                tableLocalPos = new Vector3(-0.45f, 1.075f, -0.12f), tableLocalRot = new Vector3(0f, 90f, 0f),
+                socketLocalPos = new Vector3(0f, 0.01f, -0.05f), socketLocalRot = Vector3.zero
+            });
+            ak74.parts.Add(new WeaponPartData {
+                partId = "Mag", displayName = "Cargador Curvo Banana (30 T.)", meshName = "Mag",
+                functionDescription = "Cargador curvo característico de baquelita reforzada para calibre 5.45mm.",
+                tableLocalPos = new Vector3(0.45f, 1.075f, -0.07f), tableLocalRot = new Vector3(0f, 90f, 90f),
+                socketLocalPos = Vector3.zero, socketLocalRot = Vector3.zero
+            });
+            ak74.parts.Add(new WeaponPartData {
+                partId = "Trigger", displayName = "Gatillo y Fiador (Trigger)", meshName = "Trigger",
+                functionDescription = "Conjunto de disparo robusto diseñado para máxima confiabilidad.",
+                tableLocalPos = new Vector3(0.12f, 1.075f, -0.16f), tableLocalRot = new Vector3(0f, 90f, 0f),
+                socketLocalPos = Vector3.zero, socketLocalRot = Vector3.zero
+            });
+            availableWeapons.Add(ak74);
+
+            // 4. UZI Submachine Gun
+            var uzi = new WeaponData {
+                weaponId = "UZI",
+                weaponName = "Subfusil UZI",
+                caliber = "9x19mm Parabellum",
+                fbxPath = "Assets/Low Poly Weapons VOL.1/Models/Uzi.fbx",
+                modelScale = 1.6f,
+                hologramOffset = new Vector3(0f, 1.48f, 1.42f),
+                hologramEuler = new Vector3(0f, 85f, -8f)
+            };
+            uzi.parts.Add(new WeaponPartData {
+                partId = "Receiver", displayName = "Cajón y Empuñadura (Receiver)", meshName = "Uzi",
+                functionDescription = "Cajón de chapa estampada con cargador insertado en la empuñadura central.",
+                tableLocalPos = new Vector3(0.00f, 1.075f, 0.06f), tableLocalRot = new Vector3(0f, 90f, 90f),
+                socketLocalPos = Vector3.zero, socketLocalRot = Vector3.zero
+            });
+            uzi.parts.Add(new WeaponPartData {
+                partId = "Bolt", displayName = "Cerrojo Telescópico (Telescoping Bolt)", meshName = "Bolt",
+                functionDescription = "Cerrojo que envuelve la recámara para reducir la longitud total del arma.",
+                tableLocalPos = new Vector3(-0.40f, 1.075f, -0.12f), tableLocalRot = new Vector3(0f, 90f, 0f),
+                socketLocalPos = new Vector3(0f, 0.03f, 0.02f), socketLocalRot = Vector3.zero
+            });
+            uzi.parts.Add(new WeaponPartData {
+                partId = "Magazine", displayName = "Cargador Recto (25 Cartuchos 9mm)", meshName = "Magazin",
+                functionDescription = "Se aloja en el interior de la empuñadura facilitando la recarga a ciegas.",
+                tableLocalPos = new Vector3(0.40f, 1.075f, -0.07f), tableLocalRot = new Vector3(0f, 90f, 90f),
+                socketLocalPos = new Vector3(0f, 0.01f, 0.02f), socketLocalRot = Vector3.zero
+            });
+            uzi.parts.Add(new WeaponPartData {
+                partId = "Stock", displayName = "Culata Plegable de Acero (Folding Stock)", meshName = "Stock",
+                functionDescription = "Culata extensible que proporciona apoyo al hombro para disparos estables.",
+                tableLocalPos = new Vector3(-0.35f, 1.075f, 0.13f), tableLocalRot = new Vector3(0f, 90f, 0f),
+                socketLocalPos = new Vector3(0f, 0.02f, 0.15f), socketLocalRot = Vector3.zero
+            });
+            uzi.parts.Add(new WeaponPartData {
+                partId = "Trigger", displayName = "Gatillo y Selector de Tiro", meshName = "Trigger",
+                functionDescription = "Selector de modo de tiro: Seguro, Semiautomático y Ráfaga automática.",
+                tableLocalPos = new Vector3(0.10f, 1.075f, -0.16f), tableLocalRot = new Vector3(0f, 90f, 0f),
+                socketLocalPos = new Vector3(0f, 0.01f, -0.02f), socketLocalRot = Vector3.zero
+            });
+            availableWeapons.Add(uzi);
+        }
+        #endregion
+
         #region Procedural Audio Generators
         private AudioClip CreateMechanicalSnapClip()
         {
             int sampleRate = 44100;
-            int length = (int)(sampleRate * 0.12f); // 120ms snap
+            int length = (int)(sampleRate * 0.12f);
             float[] data = new float[length];
             for (int i = 0; i < length; i++)
             {
                 float t = (float)i / sampleRate;
-                float envelope = Mathf.Exp(-t * 65f); // Fast decay
+                float envelope = Mathf.Exp(-t * 65f);
                 float click = Mathf.Sin(2f * Mathf.PI * 1850f * t);
                 float sub = Mathf.Sin(2f * Mathf.PI * 420f * t) * 0.4f;
                 float noise = (UnityEngine.Random.value * 2f - 1f) * 0.25f;
@@ -278,7 +695,7 @@ namespace VRRangeAcademy.Assembly
         private AudioClip CreateSlideRackClip()
         {
             int sampleRate = 44100;
-            int length = (int)(sampleRate * 0.45f); // 450ms metallic double slide
+            int length = (int)(sampleRate * 0.45f);
             float[] data = new float[length];
             for (int i = 0; i < length; i++)
             {
@@ -298,16 +715,16 @@ namespace VRRangeAcademy.Assembly
         private AudioClip CreateCompletionChimeClip()
         {
             int sampleRate = 44100;
-            int length = (int)(sampleRate * 0.85f); // 850ms victory chime
+            int length = (int)(sampleRate * 0.85f);
             float[] data = new float[length];
             for (int i = 0; i < length; i++)
             {
                 float t = (float)i / sampleRate;
                 float envelope = Mathf.Exp(-t * 5f);
-                float c1 = Mathf.Sin(2f * Mathf.PI * 523.25f * t); // C5
-                float c2 = Mathf.Sin(2f * Mathf.PI * 659.25f * t) * 0.8f; // E5
-                float c3 = Mathf.Sin(2f * Mathf.PI * 783.99f * t) * 0.9f; // G5
-                float c4 = Mathf.Sin(2f * Mathf.PI * 1046.50f * t) * 0.7f; // C6
+                float c1 = Mathf.Sin(2f * Mathf.PI * 523.25f * t);
+                float c2 = Mathf.Sin(2f * Mathf.PI * 659.25f * t) * 0.8f;
+                float c3 = Mathf.Sin(2f * Mathf.PI * 783.99f * t) * 0.9f;
+                float c4 = Mathf.Sin(2f * Mathf.PI * 1046.50f * t) * 0.7f;
                 data[i] = (c1 + c2 + c3 + c4) * 0.25f * envelope;
             }
             var clip = AudioClip.Create("CompletionChime", length, 1, sampleRate, false);
