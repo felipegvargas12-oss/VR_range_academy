@@ -173,18 +173,24 @@ namespace VRRangeAcademy.Editor
             dirLight.color = new Color(0.9f, 0.93f, 1.0f);
             existingLight.transform.rotation = Quaternion.Euler(45f, -30f, 0);
 
-            // 6. UI CANVAS (World Space VR Diegetic Interface)
-            BuildVRMenuCanvas(uiRoot);
-
             // 7. Player / XR Setup
-            SetupPlayerRig(playerRoot, existingCam);
+            Camera mainCam = SetupPlayerRig(playerRoot, existingCam);
 
-            // 8. EventSystem
-            if (Object.FindAnyObjectByType<EventSystem>() == null)
+            // 6. UI CANVAS (World Space VR Diegetic Interface)
+            BuildVRMenuCanvas(uiRoot, mainCam);
+
+            // 8. EventSystem (New Input System UI Module)
+            EventSystem es = Object.FindAnyObjectByType<EventSystem>();
+            if (es == null)
             {
-                GameObject es = new GameObject("EventSystem");
-                es.AddComponent<EventSystem>();
-                es.AddComponent<StandaloneInputModule>();
+                GameObject esObj = new GameObject("EventSystem");
+                es = esObj.AddComponent<EventSystem>();
+            }
+            var standalone = es.GetComponent<StandaloneInputModule>();
+            if (standalone != null) Object.DestroyImmediate(standalone);
+            if (es.GetComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>() == null)
+            {
+                es.gameObject.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
             }
 
             // Save Scene
@@ -195,7 +201,7 @@ namespace VRRangeAcademy.Editor
             Debug.Log("<color=#2EA3FF><b>[VR Range Academy]</b> Escena MainMenu construida y guardada exitosamente!</color>");
         }
 
-        private static void BuildVRMenuCanvas(GameObject parent)
+        private static void BuildVRMenuCanvas(GameObject parent, Camera cam)
         {
             GameObject canvasObj = new GameObject("VR_MainMenu_Canvas");
             canvasObj.transform.parent = parent.transform;
@@ -206,6 +212,7 @@ namespace VRRangeAcademy.Editor
 
             Canvas canvas = canvasObj.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.WorldSpace;
+            canvas.worldCamera = cam;
             canvasObj.AddComponent<CanvasScaler>();
             canvasObj.AddComponent<GraphicRaycaster>();
 
@@ -322,10 +329,10 @@ namespace VRRangeAcademy.Editor
             so.ApplyModifiedProperties();
 
             // Build Left-Hand Controller Guide Diagram (As seen on left side of the reference image!)
-            BuildControllerGuideDiagram(parent);
+            BuildControllerGuideDiagram(parent, cam);
         }
 
-        private static void BuildControllerGuideDiagram(GameObject parent)
+        private static void BuildControllerGuideDiagram(GameObject parent, Camera cam)
         {
             GameObject guideObj = new GameObject("VR_ControllerGuide_HUD");
             guideObj.transform.parent = parent.transform;
@@ -335,6 +342,7 @@ namespace VRRangeAcademy.Editor
 
             Canvas guideCanvas = guideObj.AddComponent<Canvas>();
             guideCanvas.renderMode = RenderMode.WorldSpace;
+            guideCanvas.worldCamera = cam;
             guideObj.AddComponent<CanvasScaler>();
             guideObj.AddComponent<GraphicRaycaster>();
 
@@ -365,11 +373,18 @@ namespace VRRangeAcademy.Editor
                 controlsGuideText, 16, FontStyles.Normal, TextAlignmentOptions.TopLeft, Color.white);
         }
 
-        private static void SetupPlayerRig(GameObject parent, GameObject existingCamera)
+        private static Camera SetupPlayerRig(GameObject parent, GameObject existingCamera)
         {
             GameObject rig = new GameObject("XR_Origin_Rig");
             rig.transform.parent = parent.transform;
             rig.transform.position = Vector3.zero;
+
+            CharacterController cc = rig.AddComponent<CharacterController>();
+            cc.height = 1.75f;
+            cc.radius = 0.35f;
+            cc.center = new Vector3(0, 0.875f, 0);
+
+            rig.AddComponent<VRRangeAcademy.Player.DesktopPlayerController>();
 
             // Camera Setup
             GameObject camObj = existingCamera != null ? existingCamera : new GameObject("Main Camera");
@@ -387,6 +402,8 @@ namespace VRRangeAcademy.Editor
             rightHand.transform.rotation = Quaternion.Euler(8f, 0, 0); // Pointing slightly down towards menu
 
             rightHand.AddComponent<VRRaycastPointer>();
+
+            return cam;
         }
 
         #region Helper Creators
