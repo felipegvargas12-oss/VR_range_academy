@@ -164,12 +164,12 @@ namespace VRRangeAcademy.Environment
 
         private static void EnforceScreensAlignment()
         {
-            // Dejar la pantalla montada limpiamente en la pared de la derecha orientada hacia la galería
+            // Dejar la pantalla montada limpiamente en la pared de la derecha orientada hacia la galería (de frente al tirador)
             var scoreboard = GameObject.Find("Scoreboard_HUD");
             if (scoreboard != null)
             {
                 scoreboard.transform.position = new Vector3(7.46f, 1.85f, 4.5f);
-                scoreboard.transform.rotation = Quaternion.Euler(0f, -90f, 0f);
+                scoreboard.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
             }
         }
     }

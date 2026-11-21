@@ -838,8 +838,8 @@ namespace VRRangeAcademy.Editor
                 SetField(hitRec3, "distanceMeters", 18f);
             }
 
-            // 9. Marcador Digital LED (Scoreboard HUD) adosado a la pared derecha del polígono
-            BuildRangeScoreboard(rangeRoot.transform, new Vector3(7.46f, 1.85f, 4.5f), Quaternion.Euler(0f, -90f, 0f), out txtScoreboard, out txtHitToast, out btnBack);
+            // 9. Marcador Digital LED (Scoreboard HUD) adosado a la pared derecha del polígono (orientado hacia la galería)
+            BuildRangeScoreboard(rangeRoot.transform, new Vector3(7.46f, 1.85f, 4.5f), Quaternion.Euler(0f, 90f, 0f), out txtScoreboard, out txtHitToast, out btnBack);
         }
 
         private static void BuildRangeScoreboard(Transform parent, Vector3 pos, Quaternion rot, out TextMeshProUGUI txtBoard, out TextMeshProUGUI txtToast, out Button btnBack)
