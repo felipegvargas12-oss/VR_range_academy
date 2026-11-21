@@ -21,11 +21,13 @@ namespace VRRangeAcademy.Assembly
 
         [Header("Feedback")]
         public AudioClip snapAudioClip;
+        public AudioClip unsnapAudioClip;
         public ParticleSystem snapVfx;
 
         [Header("Estado")]
         [SerializeField] private bool isSnapped = false;
         [SerializeField] private bool isHeld = false;
+        private bool canSnapAgain = true;
 
         public bool IsSnapped => isSnapped;
         public bool IsHeld => isHeld;
@@ -40,6 +42,7 @@ namespace VRRangeAcademy.Assembly
         private Quaternion holdRotOffset;
 
         public event Action<AssemblyPiece> OnSnapped;
+        public event Action<AssemblyPiece> OnUnsnapped;
         public event Action<AssemblyPiece> OnGrabbed;
         public event Action<AssemblyPiece> OnReleased;
 
@@ -62,11 +65,22 @@ namespace VRRangeAcademy.Assembly
 
             if (isHeld)
             {
+                if (holdParent != null)
+                {
+                    transform.position = holdParent.TransformPoint(holdOffset);
+                    transform.rotation = holdParent.rotation * holdRotOffset;
+                }
+
                 // Chequear distancia al socket holográfico
                 if (targetSocket != null)
                 {
                     float dist = Vector3.Distance(transform.position, targetSocket.position);
-                    if (dist <= snapThresholdDistance)
+                    if (dist > snapThresholdDistance * 1.5f)
+                    {
+                        canSnapAgain = true;
+                    }
+
+                    if (canSnapAgain && dist <= snapThresholdDistance)
                     {
                         ExecuteSnap();
                     }
@@ -76,7 +90,10 @@ namespace VRRangeAcademy.Assembly
 
         public void Grab(Transform holder)
         {
-            if (isSnapped) return;
+            if (isSnapped)
+            {
+                DetachFromSocket();
+            }
 
             isHeld = true;
             holdParent = holder;
@@ -92,6 +109,53 @@ namespace VRRangeAcademy.Assembly
             OnGrabbed?.Invoke(this);
         }
 
+        public void DetachFromSocket()
+        {
+            if (!isSnapped) return;
+
+            isSnapped = false;
+            canSnapAgain = false;
+            transform.SetParent(null);
+
+            if (rb != null)
+            {
+                rb.isKinematic = true;
+                rb.useGravity = false;
+            }
+
+            if (unsnapAudioClip != null)
+            {
+                AudioSource.PlayClipAtPoint(unsnapAudioClip, transform.position, 1.0f);
+            }
+            else if (snapAudioClip != null)
+            {
+                AudioSource.PlayClipAtPoint(snapAudioClip, transform.position, 0.9f);
+            }
+
+            OnUnsnapped?.Invoke(this);
+        }
+
+        public void SnapToSocketImmediate()
+        {
+            isSnapped = true;
+            isHeld = false;
+            holdParent = null;
+            canSnapAgain = false;
+
+            if (rb != null)
+            {
+                rb.isKinematic = true;
+                rb.useGravity = false;
+            }
+
+            if (targetSocket != null)
+            {
+                transform.position = targetSocket.position;
+                transform.rotation = targetSocket.rotation;
+                transform.SetParent(targetSocket);
+            }
+        }
+
         public void Release()
         {
             if (isSnapped) return;
@@ -99,7 +163,7 @@ namespace VRRangeAcademy.Assembly
             isHeld = false;
             holdParent = null;
 
-            if (targetSocket != null)
+            if (canSnapAgain && targetSocket != null)
             {
                 float dist = Vector3.Distance(transform.position, targetSocket.position);
                 if (dist <= snapThresholdDistance)
@@ -180,6 +244,7 @@ namespace VRRangeAcademy.Assembly
         {
             isSnapped = false;
             isHeld = false;
+            canSnapAgain = true;
             holdParent = null;
             transform.SetParent(null);
             transform.position = initialPosition;

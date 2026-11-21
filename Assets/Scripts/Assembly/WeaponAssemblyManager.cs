@@ -36,8 +36,19 @@ namespace VRRangeAcademy.Assembly
         public List<WeaponPartData> parts = new List<WeaponPartData>();
     }
 
+    public enum WorkbenchMode
+    {
+        Disassembly, // Desarme de campaña interactivo con Oculus Quest 3
+        Assembly     // Ensamble técnico hacia el holograma
+    }
+
     public class WeaponAssemblyManager : MonoBehaviour
     {
+        public static WeaponAssemblyManager Instance { get; private set; }
+
+        [Header("Modo de Banco (Desarme / Ensamble)")]
+        public WorkbenchMode currentMode = WorkbenchMode.Disassembly;
+
         [Header("Definición de Armas")]
         [SerializeField] private List<WeaponData> availableWeapons = new List<WeaponData>();
         [SerializeField] private int currentWeaponIndex = 0;
@@ -78,13 +89,17 @@ namespace VRRangeAcademy.Assembly
         private List<AssemblyPiece> activePieces = new List<AssemblyPiece>();
         private int currentStepIndex = 0;
         private int totalSnappedCount = 0;
+        private int totalDisassembledCount = 0;
         private bool isAssemblyCompleted = false;
+        private bool isDisassemblyCompleted = false;
 
-        public bool IsCompleted => isAssemblyCompleted;
+        public bool IsCompleted => currentMode == WorkbenchMode.Disassembly ? isDisassemblyCompleted : isAssemblyCompleted;
         public int CurrentWeaponIndex => currentWeaponIndex;
 
         private void Awake()
         {
+            Instance = this;
+
             if (audioSource == null)
             {
                 audioSource = gameObject.AddComponent<AudioSource>();
@@ -108,9 +123,29 @@ namespace VRRangeAcademy.Assembly
             HandleKeyboardWeaponSwitch();
         }
 
+        public void ToggleWorkbenchMode()
+        {
+            currentMode = currentMode == WorkbenchMode.Disassembly ? WorkbenchMode.Assembly : WorkbenchMode.Disassembly;
+            PlaySound(snapClip, 1.2f);
+            LoadWeapon(currentWeaponIndex);
+        }
+
+        public void SetWorkbenchMode(WorkbenchMode mode)
+        {
+            if (currentMode == mode) return;
+            currentMode = mode;
+            PlaySound(snapClip, 1.2f);
+            LoadWeapon(currentWeaponIndex);
+        }
+
         private void HandleKeyboardWeaponSwitch()
         {
             if (Keyboard.current == null) return;
+
+            if (Keyboard.current.xKey.wasPressedThisFrame)
+            {
+                ToggleWorkbenchMode();
+            }
 
             if (Keyboard.current.digit1Key.wasPressedThisFrame) SwitchWeapon(0);
             if (Keyboard.current.digit2Key.wasPressedThisFrame) SwitchWeapon(1);
@@ -195,6 +230,7 @@ namespace VRRangeAcademy.Assembly
                 if (p != null)
                 {
                     p.OnSnapped -= HandlePieceSnapped;
+                    p.OnUnsnapped -= HandlePieceUnsnapped;
                     p.OnGrabbed -= HandlePieceGrabbed;
                     p.gameObject.SetActive(false);
                     if (Application.isPlaying)
@@ -259,8 +295,10 @@ namespace VRRangeAcademy.Assembly
             }
 
             totalSnappedCount = 0;
+            totalDisassembledCount = 0;
             currentStepIndex = 0;
             isAssemblyCompleted = false;
+            isDisassemblyCompleted = false;
         }
 
         private void BuildWeaponHologram(WeaponData w)
@@ -288,6 +326,13 @@ namespace VRRangeAcademy.Assembly
                 foreach (var col in ghost.GetComponentsInChildren<Collider>())
                 {
                     Destroy(col);
+                }
+
+                // En modo desarme, el arma real está ensamblada con sus piezas físicas,
+                // por lo que ocultamos el fantasma translúcido para apreciar el arma metálica real
+                if (currentMode == WorkbenchMode.Disassembly)
+                {
+                    ghost.SetActive(false);
                 }
             }
 
@@ -361,11 +406,58 @@ namespace VRRangeAcademy.Assembly
                 pieceComp.targetSocket = socketTrans;
                 pieceComp.SetInitialTransform(pieceGo.transform.position, pieceGo.transform.rotation);
 
+                // Audio de desarme / extracción y eventos
+                pieceComp.unsnapAudioClip = LoadPieceUnsnapClip(w.weaponId, part.partId);
                 pieceComp.OnSnapped += HandlePieceSnapped;
+                pieceComp.OnUnsnapped += HandlePieceUnsnapped;
                 pieceComp.OnGrabbed += HandlePieceGrabbed;
 
                 activePieces.Add(pieceComp);
+
+                // En MODO DESARME: Cada pieza inicia encastrada en su posición en el arma completa
+                if (currentMode == WorkbenchMode.Disassembly)
+                {
+                    pieceComp.SnapToSocketImmediate();
+                }
             }
+
+            if (currentMode == WorkbenchMode.Disassembly)
+            {
+                totalSnappedCount = activePieces.Count;
+                totalDisassembledCount = 0;
+            }
+            else
+            {
+                totalSnappedCount = 0;
+                totalDisassembledCount = 0;
+            }
+            FindNextPendingStep();
+        }
+
+        private AudioClip LoadPieceUnsnapClip(string weaponId, string partId)
+        {
+#if UNITY_EDITOR
+            string p = partId.ToLower();
+            if (p.Contains("mag"))
+            {
+                return weaponId == "M1911" || weaponId == "UZI"
+                    ? UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/Handgun/Reload/sfx_wpn_hgn_reload_02_magOut.wav")
+                    : UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/AssaultRifle/Reload/sfx_wpn_ar_reload_01_magOut.wav");
+            }
+            if (p.Contains("slide") || p.Contains("bolt"))
+            {
+                return weaponId == "M1911"
+                    ? UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/Handgun/Reload/sfx_wpn_hgn_reload_01_slideLock.wav")
+                    : UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/AssaultRifle/Reload/sfx_wpn_ar_reload_04_charge.wav");
+            }
+            if (p.Contains("sight") || p.Contains("stock"))
+            {
+                return UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/AssaultRifle/Foley/sfx_wpn_ar_foley_equip_01.wav");
+            }
+            return UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/Handgun/Foley/sfx_wpn_hgn_foley_aim_02.wav");
+#else
+            return null;
+#endif
         }
 
         private Mesh FindSubmesh(string fbxPath, string meshName)
@@ -380,7 +472,7 @@ namespace VRRangeAcademy.Assembly
 
         private void HandlePieceGrabbed(AssemblyPiece piece)
         {
-            if (piece == null || isAssemblyCompleted) return;
+            if (piece == null || isAssemblyCompleted || isDisassemblyCompleted) return;
             if (guidanceArrow != null && piece.targetSocket != null)
             {
                 guidanceArrow.SetTargets(piece.transform, piece.targetSocket);
@@ -393,13 +485,57 @@ namespace VRRangeAcademy.Assembly
             totalSnappedCount++;
             PlaySound(snapClip, 1.0f);
 
+            AssemblyPlayerController.TriggerHaptic(UnityEngine.XR.XRNode.RightHand, 0.7f, 0.12f);
+            AssemblyPlayerController.TriggerHaptic(UnityEngine.XR.XRNode.LeftHand, 0.7f, 0.12f);
+
             FindNextPendingStep();
             UpdateStepUI();
             UpdateGuidanceArrow();
 
-            if (totalSnappedCount >= activePieces.Count)
+            if (currentMode == WorkbenchMode.Assembly && totalSnappedCount >= activePieces.Count)
             {
                 StartCoroutine(CompleteAssemblySequence());
+            }
+        }
+
+        private void HandlePieceUnsnapped(AssemblyPiece piece)
+        {
+            if (piece == null) return;
+
+            totalDisassembledCount++;
+            if (totalSnappedCount > 0) totalSnappedCount--;
+
+            AssemblyPlayerController.TriggerHaptic(UnityEngine.XR.XRNode.RightHand, 0.8f, 0.15f);
+            AssemblyPlayerController.TriggerHaptic(UnityEngine.XR.XRNode.LeftHand, 0.8f, 0.15f);
+
+            FindNextPendingStep();
+            UpdateStepUI();
+            UpdateGuidanceArrow();
+
+            if (currentMode == WorkbenchMode.Disassembly && totalDisassembledCount >= activePieces.Count)
+            {
+                StartCoroutine(CompleteDisassemblySequence());
+            }
+        }
+
+        private IEnumerator CompleteDisassemblySequence()
+        {
+            isDisassemblyCompleted = true;
+            if (guidanceArrow != null) guidanceArrow.SetVisible(false);
+
+            yield return new WaitForSeconds(0.4f);
+            PlaySound(completionChimeClip, 1.2f);
+
+            if (panelCompletion != null) panelCompletion.SetActive(true);
+            var curW = availableWeapons[currentWeaponIndex];
+            if (txtCompletionTitle != null)
+            {
+                txtCompletionTitle.text = $"[!] DESARME DE CAMPAÑA DE {curW.weaponName.ToUpper()} COMPLETADO AL 100%\nHas extraído y reconocido todos los componentes mecánicos del arma.";
+            }
+
+            if (Shooting.ShootingRangeManager.Instance != null)
+            {
+                Shooting.ShootingRangeManager.Instance.UnlockRange(curW.weaponName);
             }
         }
 
@@ -407,10 +543,18 @@ namespace VRRangeAcademy.Assembly
         {
             for (int i = 0; i < activePieces.Count; i++)
             {
-                if (activePieces[i] != null && !activePieces[i].IsSnapped)
+                if (activePieces[i] != null)
                 {
-                    currentStepIndex = i;
-                    return;
+                    if (currentMode == WorkbenchMode.Disassembly && activePieces[i].IsSnapped)
+                    {
+                        currentStepIndex = i;
+                        return;
+                    }
+                    else if (currentMode == WorkbenchMode.Assembly && !activePieces[i].IsSnapped)
+                    {
+                        currentStepIndex = i;
+                        return;
+                    }
                 }
             }
             currentStepIndex = activePieces.Count;
@@ -420,32 +564,52 @@ namespace VRRangeAcademy.Assembly
         {
             if (txtWeaponTitle != null)
             {
-                txtWeaponTitle.text = $"{w.weaponName.ToUpper()}  [{w.caliber}]";
+                string modeTag = currentMode == WorkbenchMode.Disassembly ? "<color=#00FFAA>[MODO DESARME]</color>" : "<color=#38B6FF>[MODO ARMAR]</color>";
+                txtWeaponTitle.text = $"{w.weaponName.ToUpper()}  [{w.caliber}]  {modeTag}";
             }
         }
 
         private void UpdateStepUI()
         {
-            if (isAssemblyCompleted) return;
+            if (isAssemblyCompleted || isDisassemblyCompleted) return;
 
             if (currentStepIndex < activePieces.Count)
             {
                 var cur = activePieces[currentStepIndex];
-                if (txtStepCounter != null)
+                if (currentMode == WorkbenchMode.Disassembly)
                 {
-                    txtStepCounter.text = $"PASO {totalSnappedCount + 1} DE {activePieces.Count}";
+                    if (txtStepCounter != null)
+                    {
+                        txtStepCounter.text = $"MODO DESARME: {totalDisassembledCount} DE {activePieces.Count} PIEZAS DESMONTADAS";
+                    }
+                    if (txtStepTitle != null)
+                    {
+                        txtStepTitle.text = $"Desmontar: {cur.displayName}";
+                    }
+                    if (txtStepDescription != null)
+                    {
+                        txtStepDescription.text = $"Sujeta con mando Quest 3 (Grip / Trigger) y retira: {cur.functionDescription}";
+                    }
                 }
-                if (txtStepTitle != null)
+                else
                 {
-                    txtStepTitle.text = $"Acoplar: {cur.displayName}";
+                    if (txtStepCounter != null)
+                    {
+                        txtStepCounter.text = $"MODO ARMAR: {totalSnappedCount} DE {activePieces.Count} PIEZAS ACOPLADAS";
+                    }
+                    if (txtStepTitle != null)
+                    {
+                        txtStepTitle.text = $"Acoplar: {cur.displayName}";
+                    }
+                    if (txtStepDescription != null)
+                    {
+                        txtStepDescription.text = cur.functionDescription;
+                    }
                 }
-                if (txtStepDescription != null)
-                {
-                    txtStepDescription.text = cur.functionDescription;
-                }
+
                 if (txtControlsHint != null)
                 {
-                    txtControlsHint.text = "[W,A,S,D] Moverse | [Clic/E] Agarrar | [1-4] Cambiar Arma | [Tab] Alternar Cursor";
+                    txtControlsHint.text = "[Mando Quest 3: Grip / Trigger] Agarrar / Desarmar | [X] Alternar Armar/Desarmar | [1-4] Arma";
                 }
             }
         }
@@ -454,17 +618,27 @@ namespace VRRangeAcademy.Assembly
         {
             if (guidanceArrow == null) return;
 
-            if (isAssemblyCompleted || currentStepIndex >= activePieces.Count)
+            if (isAssemblyCompleted || isDisassemblyCompleted || currentStepIndex >= activePieces.Count)
             {
                 guidanceArrow.SetVisible(false);
                 return;
             }
 
             var nextPiece = activePieces[currentStepIndex];
-            if (nextPiece != null && nextPiece.targetSocket != null)
+            if (nextPiece != null)
             {
-                guidanceArrow.SetTargets(nextPiece.transform, nextPiece.targetSocket);
-                guidanceArrow.SetVisible(true);
+                if (currentMode == WorkbenchMode.Disassembly)
+                {
+                    var mat = GameObject.Find("Armorer_Disassembly_Mat");
+                    Transform targetMat = mat != null ? mat.transform : piecesContainer;
+                    guidanceArrow.SetTargets(nextPiece.transform, targetMat);
+                    guidanceArrow.SetVisible(true);
+                }
+                else if (nextPiece.targetSocket != null)
+                {
+                    guidanceArrow.SetTargets(nextPiece.transform, nextPiece.targetSocket);
+                    guidanceArrow.SetVisible(true);
+                }
             }
             else
             {
