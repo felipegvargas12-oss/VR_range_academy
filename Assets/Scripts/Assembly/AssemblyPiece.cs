@@ -29,6 +29,7 @@ namespace VRRangeAcademy.Assembly
 
         public bool IsSnapped => isSnapped;
         public bool IsHeld => isHeld;
+        public Transform TargetSocket => targetSocket;
 
         private Rigidbody rb;
         private Collider col;
@@ -61,13 +62,6 @@ namespace VRRangeAcademy.Assembly
 
             if (isHeld)
             {
-                // Seguir al objeto que lo sostiene si existe
-                if (holdParent != null)
-                {
-                    transform.position = holdParent.TransformPoint(holdOffset);
-                    transform.rotation = holdParent.rotation * holdRotOffset;
-                }
-
                 // Chequear distancia al socket holográfico
                 if (targetSocket != null)
                 {
@@ -128,8 +122,8 @@ namespace VRRangeAcademy.Assembly
         {
             if (isSnapped) return;
 
-            transform.position = worldPos;
-            transform.rotation = worldRot;
+            transform.position = Vector3.Lerp(transform.position, worldPos, Time.deltaTime * 20f);
+            transform.rotation = Quaternion.Slerp(transform.rotation, worldRot, Time.deltaTime * 14f);
 
             if (targetSocket != null)
             {

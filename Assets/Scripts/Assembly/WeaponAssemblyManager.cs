@@ -530,7 +530,7 @@ namespace VRRangeAcademy.Assembly
             var gunGo = Instantiate(prefab, cam.transform);
             gunGo.name = "Equipped_" + w.weaponId;
             gunGo.transform.localPosition = new Vector3(0.24f, -0.22f, 0.45f);
-            gunGo.transform.localRotation = Quaternion.identity;
+            gunGo.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
             gunGo.transform.localScale = Vector3.one * (w.modelScale * 0.70f);
 
             foreach (var col in gunGo.GetComponentsInChildren<Collider>()) Destroy(col);

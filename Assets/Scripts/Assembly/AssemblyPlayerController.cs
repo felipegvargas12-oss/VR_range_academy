@@ -328,8 +328,19 @@ namespace VRRangeAcademy.Assembly
                 }
             }
 
-            // Mover suavemente la pieza hacia la posición sostenida
-            heldPiece.SetTargetPositionDirect(targetHoldPos, heldPiece.transform.rotation);
+            // Orientar la pieza hacia el socket de destino o hacia el frente de la cámara (nunca apuntando hacia el jugador)
+            Quaternion targetHoldRot;
+            if (heldPiece.TargetSocket != null)
+            {
+                targetHoldRot = heldPiece.TargetSocket.rotation;
+            }
+            else
+            {
+                targetHoldRot = playerCamera.transform.rotation * Quaternion.Euler(0f, 180f, 0f);
+            }
+
+            // Mover y orientar suavemente la pieza hacia la posición sostenida
+            heldPiece.SetTargetPositionDirect(targetHoldPos, targetHoldRot);
         }
 
         private void OnGUI()

@@ -19,6 +19,7 @@ namespace VRRangeAcademy.Shooting
         [Header("Posicionamiento en Primera Persona")]
         [SerializeField] private Vector3 hipPosition = new Vector3(0.24f, -0.22f, 0.45f);
         [SerializeField] private Vector3 adsPosition = new Vector3(0.0f, -0.14f, 0.38f);
+        [SerializeField] private Vector3 baseRotation = new Vector3(0f, 180f, 0f);
         [SerializeField] private float adsSpeed = 12f;
 
         [Header("Efectos Visuales (VFX)")]
@@ -62,6 +63,7 @@ namespace VRRangeAcademy.Shooting
             {
                 var lightGo = new GameObject("Muzzle_Light");
                 lightGo.transform.SetParent(transform, false);
+                lightGo.transform.localPosition = new Vector3(0f, 0.05f, -0.35f);
                 muzzleLight = lightGo.AddComponent<Light>();
                 muzzleLight.type = LightType.Point;
                 muzzleLight.range = 5f;
@@ -89,6 +91,8 @@ namespace VRRangeAcademy.Shooting
         private void Start()
         {
             playerCamera = GetComponentInParent<Camera>() ?? Camera.main;
+            transform.localPosition = hipPosition;
+            transform.localRotation = Quaternion.Euler(baseRotation);
         }
 
         public void SetupWeapon(string id, string name, string cal, int magCap, float dmg, float rate)
@@ -194,8 +198,9 @@ namespace VRRangeAcademy.Shooting
                 }
             }
 
-            // 6. Trazadora visual de bala
-            Vector3 muzzlePos = muzzlePoint != null ? muzzlePoint.position : transform.position + transform.forward * 0.3f;
+            // 6. Trazadora visual de bala orientada hacia adelante en el eje de la cámara
+            Vector3 forwardDir = playerCamera != null ? playerCamera.transform.forward : transform.forward;
+            Vector3 muzzlePos = muzzlePoint != null ? muzzlePoint.position : transform.position + forwardDir * 0.40f;
             StartCoroutine(RenderTracer(muzzlePos, hitPoint));
         }
 
@@ -243,7 +248,7 @@ namespace VRRangeAcademy.Shooting
         {
             targetRecoilEuler = Vector3.Lerp(targetRecoilEuler, Vector3.zero, Time.deltaTime * 14f);
             currentRecoilEuler = Vector3.Lerp(currentRecoilEuler, targetRecoilEuler, Time.deltaTime * 24f);
-            transform.localRotation = Quaternion.Euler(currentRecoilEuler);
+            transform.localRotation = Quaternion.Euler(baseRotation) * Quaternion.Euler(currentRecoilEuler);
         }
 
         private void OnGUI()
