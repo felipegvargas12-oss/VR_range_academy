@@ -347,21 +347,19 @@ namespace VRRangeAcademy.Assembly
         {
             if (!showDesktopHUD) return;
 
-            // 1. Retícula central cuando el cursor está bloqueado
-            if (isCursorLocked)
+            // 1. Indicador interactivo solo para piezas sueltas en la mesa de ensamblaje (sin puntero de tiro en pantalla)
+            var equippedGun = GetComponentInChildren<VRRangeAcademy.Shooting.WeaponShootingController>()
+                           ?? (Camera.main != null ? Camera.main.GetComponentInChildren<VRRangeAcademy.Shooting.WeaponShootingController>() : null);
+
+            // Si hay un arma equipada, se eliminan todas las retículas de pantalla para apuntar con las miras mecánicas del arma
+            if (equippedGun == null && isCursorLocked && (hoveredPiece != null || heldPiece != null))
             {
                 float centerX = Screen.width * 0.5f;
                 float centerY = Screen.height * 0.5f;
-                float crossSize = 10f;
-                float thickness = 2f;
+                float dotSize = 6f;
 
-                Color crossColor = (hoveredPiece != null || heldPiece != null) ? new Color(0f, 1f, 0.7f, 0.9f) : new Color(1f, 1f, 1f, 0.6f);
-
-                GUI.color = crossColor;
-                // Barra horizontal
-                GUI.DrawTexture(new Rect(centerX - crossSize, centerY - thickness * 0.5f, crossSize * 2f, thickness), Texture2D.whiteTexture);
-                // Barra vertical
-                GUI.DrawTexture(new Rect(centerX - thickness * 0.5f, centerY - crossSize, thickness, crossSize * 2f), Texture2D.whiteTexture);
+                GUI.color = new Color(0.2f, 1f, 0.8f, 0.85f);
+                GUI.DrawTexture(new Rect(centerX - dotSize * 0.5f, centerY - dotSize * 0.5f, dotSize, dotSize), Texture2D.whiteTexture);
                 GUI.color = Color.white;
             }
 
@@ -387,8 +385,8 @@ namespace VRRangeAcademy.Assembly
 
             // 3. Barra de ayuda inferior para teclado y ratón
             GUI.skin.box.fontSize = 13;
-            string controlsText = "[W,A,S,D] Moverse | [Espacio] Saltar | [Shift] Correr | [Ratón] Mirar | [Clic / E] Agarrar | [B] Modo Tiro | [T] Polígono | [Tab] Cursor";
-            GUI.Box(new Rect(Screen.width * 0.5f - 520f, Screen.height - 40f, 1040f, 30f), controlsText);
+            string controlsText = "[W,A,S,D] Moverse | [Espacio] Saltar | [Shift] Correr | [Ratón] Mirar | [Clic / E] Agarrar | [Clic Der] Encarar Mira | [B] Modo Tiro | [T] Polígono | [Tab] Cursor";
+            GUI.Box(new Rect(Screen.width * 0.5f - 560f, Screen.height - 40f, 1120f, 30f), controlsText);
         }
     }
 }

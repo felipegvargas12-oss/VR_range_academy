@@ -30,10 +30,15 @@ namespace VRRangeAcademy.Shooting
         [SerializeField] private float autoFireRate = 0.088f;
 
         [Header("Posicionamiento en Primera Persona")]
-        [SerializeField] private Vector3 hipPosition = new Vector3(0.24f, -0.22f, 0.45f);
-        [SerializeField] private Vector3 adsPosition = new Vector3(0.0f, -0.14f, 0.38f);
+        [SerializeField] private Vector3 hipPosition = new Vector3(0.20f, -0.18f, 0.38f);
+        [SerializeField] private Vector3 adsPosition = new Vector3(0.0f, -0.06f, 0.26f);
         [SerializeField] private Vector3 baseRotation = new Vector3(0f, 180f, 0f);
-        [SerializeField] private float adsSpeed = 12f;
+        [SerializeField] private float adsSpeed = 14f;
+
+        [Header("Zoom de Apuntado (Iron Sights)")]
+        [SerializeField] private float adsFov = 46f;
+        [SerializeField] private float defaultFov = 60f;
+        [SerializeField] private float fovTransitionSpeed = 12f;
 
         [Header("Efectos Visuales (VFX)")]
         [SerializeField] private Transform muzzlePoint;
@@ -108,8 +113,20 @@ namespace VRRangeAcademy.Shooting
         private void Start()
         {
             playerCamera = GetComponentInParent<Camera>() ?? Camera.main;
+            if (playerCamera != null)
+            {
+                defaultFov = playerCamera.fieldOfView;
+            }
             transform.localPosition = hipPosition;
             transform.localRotation = Quaternion.Euler(baseRotation);
+        }
+
+        private void OnDisable()
+        {
+            if (playerCamera != null)
+            {
+                playerCamera.fieldOfView = defaultFov;
+            }
         }
 
         public void SetupWeapon(string id, string name, string cal, int magCap, float dmg, float rate, bool allowFullAuto = false, WeaponFireMode initialMode = WeaponFireMode.SemiAuto)
@@ -122,6 +139,38 @@ namespace VRRangeAcademy.Shooting
             damage = dmg;
             canSwitchFireMode = allowFullAuto;
             fireMode = initialMode;
+
+            // Alineación de mira mecánica (Iron Sights) según geometría exacta 3D
+            if (id == "M1911")
+            {
+                adsPosition = new Vector3(-0.0033f, -0.0592f, 0.26f);
+                hipPosition = new Vector3(0.20f, -0.18f, 0.38f);
+                adsFov = 48f;
+                recoilKickAngle = 2.4f;
+            }
+            else if (id == "M4A1")
+            {
+                adsPosition = new Vector3(0.0010f, -0.1065f, 0.28f);
+                hipPosition = new Vector3(0.18f, -0.18f, 0.42f);
+                adsFov = 44f;
+                recoilKickAngle = 1.8f;
+            }
+            else if (id == "AK74")
+            {
+                adsPosition = new Vector3(-0.0036f, -0.0435f, 0.28f);
+                hipPosition = new Vector3(0.18f, -0.18f, 0.42f);
+                adsFov = 45f;
+                recoilKickAngle = 2.0f;
+            }
+            else if (id == "UZI")
+            {
+                adsPosition = new Vector3(-0.0015f, -0.0775f, 0.28f);
+                hipPosition = new Vector3(0.18f, -0.18f, 0.38f);
+                adsFov = 48f;
+                recoilKickAngle = 1.6f;
+            }
+
+            transform.localPosition = hipPosition;
 
             if (allowFullAuto)
             {
@@ -412,8 +461,17 @@ namespace VRRangeAcademy.Shooting
 
             // 5. Raycast balístico
             if (playerCamera == null) playerCamera = Camera.main;
+            Vector3 aimViewport = new Vector3(0.5f, 0.5f, 0f);
+            if (!isAiming)
+            {
+                // Dispersión balística natural al disparar desde la cadera (exige encarar la mira del arma para precisión quirúrgica)
+                Vector2 hipSpread = UnityEngine.Random.insideUnitCircle * 0.022f;
+                aimViewport.x += hipSpread.x;
+                aimViewport.y += hipSpread.y;
+            }
+
             Ray ray = playerCamera != null
-                ? playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f))
+                ? playerCamera.ViewportPointToRay(aimViewport)
                 : new Ray(transform.position, transform.forward);
 
             Vector3 hitPoint = ray.origin + ray.direction * bulletRange;
@@ -498,6 +556,12 @@ namespace VRRangeAcademy.Shooting
         {
             Vector3 targetPos = isAiming ? adsPosition : hipPosition;
             transform.localPosition = Vector3.Lerp(transform.localPosition, targetPos, Time.deltaTime * adsSpeed);
+
+            if (playerCamera != null)
+            {
+                float targetFov = isAiming ? adsFov : defaultFov;
+                playerCamera.fieldOfView = Mathf.Lerp(playerCamera.fieldOfView, targetFov, Time.deltaTime * fovTransitionSpeed);
+            }
         }
 
         private void UpdateRecoil()
@@ -511,21 +575,8 @@ namespace VRRangeAcademy.Shooting
         {
             if (Camera.main == null) return;
 
-            // Retícula dinámica de puntería
-            if (!isAiming)
-            {
-                float cx = Screen.width * 0.5f;
-                float cy = Screen.height * 0.5f;
-                float gap = 8f + Mathf.Abs(currentRecoilEuler.x) * 4f;
-                float len = 10f;
-                float th = 2f;
-
-                GUI.color = new Color(0f, 1f, 0.85f, 0.8f);
-                GUI.DrawTexture(new Rect(cx - th * 0.5f, cy - gap - len, th, len), Texture2D.whiteTexture);
-                GUI.DrawTexture(new Rect(cx - th * 0.5f, cy + gap, th, len), Texture2D.whiteTexture);
-                GUI.DrawTexture(new Rect(cx - gap - len, cy - th * 0.5f, len, th), Texture2D.whiteTexture);
-                GUI.DrawTexture(new Rect(cx + gap, cy - th * 0.5f, len, th), Texture2D.whiteTexture);
-            }
+            // NOTA: Se elimina todo puntero/retícula flotante de pantalla a petición del usuario.
+            // El usuario apunta únicamente a través de las miras mecánicas (Iron Sights) 3D del arma.
 
             // HUD inferior derecho de munición y modo de fuego
             var style = new GUIStyle(GUI.skin.label)
@@ -535,7 +586,7 @@ namespace VRRangeAcademy.Shooting
                 alignment = TextAnchor.MiddleRight
             };
 
-            float panelW = 340f;
+            float panelW = 390f;
             float panelH = 68f;
             float x = Screen.width - panelW - 30f;
             float y = Screen.height - panelH - 30f;
@@ -552,15 +603,15 @@ namespace VRRangeAcademy.Shooting
             string ammoText = isReloading ? "RECARGANDO..." : $"{currentAmmo} / {magazineCapacity}";
             GUI.Label(new Rect(x + 10f, y + 8f, panelW - 20f, 26f), ammoText, style);
 
-            // Indicador del Modo de Fuego activo
+            // Indicador del Modo de Fuego activo y control de mira
             string modeStr = fireMode == WeaponFireMode.FullAuto ? "[AUTO]" : "[SEMI]";
-            string modeColor = fireMode == WeaponFireMode.FullAuto ? "#00FF99" : "#FFCC00";
             string switchHint = canSwitchFireMode ? " | [B] Modo" : "";
+            string aimHint = isAiming ? " | [EN MIRA]" : " | [Clic Der] Mira";
 
-            style.fontSize = 13;
+            style.fontSize = 12;
             style.fontStyle = FontStyle.Normal;
             GUI.color = new Color(0.2f, 0.9f, 1.0f);
-            GUI.Label(new Rect(x + 10f, y + 37f, panelW - 20f, 22f), $"{weaponName.ToUpper()}  {modeStr}  [{caliber}]{switchHint}  |  [R] Recargar", style);
+            GUI.Label(new Rect(x + 10f, y + 38f, panelW - 20f, 22f), $"{weaponName.ToUpper()}  {modeStr}  [{caliber}]{switchHint}{aimHint}  |  [R] Recargar", style);
             GUI.color = Color.white;
         }
 
