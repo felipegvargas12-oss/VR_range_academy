@@ -12,10 +12,11 @@ namespace VRRangeAcademy.Assembly
         [SerializeField] private Transform leftHandAnchor;
         [SerializeField] private Transform rightHandAnchor;
 
-        [Header("Movimiento con Teclado (WASD)")]
+        [Header("Movimiento con Teclado (WASD) y Físicas")]
         [SerializeField] private float moveSpeed = 2.4f;
         [SerializeField] private float sprintMultiplier = 1.5f;
         [SerializeField] private float gravity = 9.81f;
+        [SerializeField] private float jumpHeight = 1.1f;
 
         [Header("Control de Vista con Ratón")]
         [SerializeField] private float mouseSensitivity = 1.8f;
@@ -35,6 +36,8 @@ namespace VRRangeAcademy.Assembly
         private float yaw = 0f;
         private bool isCursorLocked = true;
         private float verticalVelocity = 0f;
+        private bool wasVrJumpPressed = false;
+        private Vector3 spawnPosition;
 
         private AssemblyPiece heldPiece = null;
         private AssemblyPiece hoveredPiece = null;
@@ -42,6 +45,7 @@ namespace VRRangeAcademy.Assembly
 
         private void Awake()
         {
+            spawnPosition = transform.position;
             characterController = GetComponent<CharacterController>();
             if (playerCamera == null)
             {
@@ -159,10 +163,19 @@ namespace VRRangeAcademy.Assembly
             Vector3 move = transform.right * inputDir.x + transform.forward * inputDir.y;
             float currentSpeed = moveSpeed * (isSprinting ? sprintMultiplier : 1.0f);
 
-            // Gravedad básica
-            if (characterController.isGrounded)
+            bool isGrounded = characterController.isGrounded;
+
+            if (isGrounded)
             {
-                verticalVelocity = -0.5f;
+                if (verticalVelocity < 0f)
+                {
+                    verticalVelocity = -2.0f; // Adherencia firme al suelo
+                }
+
+                if (IsJumpPressed())
+                {
+                    verticalVelocity = Mathf.Sqrt(jumpHeight * 2f * gravity);
+                }
             }
             else
             {
@@ -171,6 +184,42 @@ namespace VRRangeAcademy.Assembly
 
             Vector3 finalMove = move * currentSpeed + Vector3.up * verticalVelocity;
             characterController.Move(finalMove * Time.deltaTime);
+
+            // Resguardo por caída al vacío
+            if (transform.position.y < -10f)
+            {
+                characterController.enabled = false;
+                transform.position = spawnPosition;
+                characterController.enabled = true;
+                verticalVelocity = 0f;
+            }
+        }
+
+        private bool IsJumpPressed()
+        {
+            if (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame) return true;
+            if (Gamepad.current != null && Gamepad.current.buttonSouth.wasPressedThisFrame) return true;
+
+            // Soporte para mandos VR (Meta Quest 3 - Botón A en mano derecha)
+            var rightDevices = new List<UnityEngine.XR.InputDevice>();
+            UnityEngine.XR.InputDevices.GetDevicesWithCharacteristics(
+                UnityEngine.XR.InputDeviceCharacteristics.Right | UnityEngine.XR.InputDeviceCharacteristics.Controller,
+                rightDevices
+            );
+            bool vrPressed = false;
+            for (int i = 0; i < rightDevices.Count; i++)
+            {
+                if (rightDevices[i].TryGetFeatureValue(UnityEngine.XR.CommonUsages.primaryButton, out bool primary) && primary)
+                {
+                    vrPressed = true;
+                    break;
+                }
+            }
+            bool vrJump = vrPressed && !wasVrJumpPressed;
+            wasVrJumpPressed = vrPressed;
+            if (vrJump) return true;
+
+            return false;
         }
 
         private void HandleInteraction()
@@ -327,8 +376,8 @@ namespace VRRangeAcademy.Assembly
 
             // 3. Barra de ayuda inferior para teclado y ratón
             GUI.skin.box.fontSize = 13;
-            string controlsText = "[W,A,S,D] Moverse | [Ratón] Mirar | [Clic / E] Agarrar / Pulsar Botones | [T] Alternar Taller/Polígono | [Tab] Cursor";
-            GUI.Box(new Rect(Screen.width * 0.5f - 420f, Screen.height - 40f, 840f, 30f), controlsText);
+            string controlsText = "[W,A,S,D] Moverse | [Espacio] Saltar | [Shift] Correr | [Ratón] Mirar | [Clic / E] Agarrar | [T] Polígono | [Tab] Cursor";
+            GUI.Box(new Rect(Screen.width * 0.5f - 470f, Screen.height - 40f, 940f, 30f), controlsText);
         }
     }
 }
