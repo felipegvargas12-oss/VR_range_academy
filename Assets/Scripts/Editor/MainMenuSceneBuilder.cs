@@ -381,8 +381,8 @@ namespace VRRangeAcademy.Editor
         {
             GameObject guideObj = new GameObject("VR_ControllerGuide_HUD");
             guideObj.transform.parent = parent.transform;
-            guideObj.transform.position = new Vector3(-1.15f, 1.25f, 1.95f);
-            guideObj.transform.rotation = Quaternion.Euler(0, 22f, 0); // Angled directly towards player
+            guideObj.transform.position = new Vector3(-1.35f, 1.38f, 1.98f);
+            guideObj.transform.rotation = Quaternion.Euler(6.43f, -34.29f, 0f); // Inclinado y orientado directamente hacia el jugador
             guideObj.transform.localScale = Vector3.one * 0.0016f;
 
             Canvas guideCanvas = guideObj.AddComponent<Canvas>();
