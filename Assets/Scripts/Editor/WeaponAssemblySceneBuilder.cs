@@ -838,8 +838,8 @@ namespace VRRangeAcademy.Editor
                 SetField(hitRec3, "distanceMeters", 18f);
             }
 
-            // 9. Marcador Digital LED (Scoreboard HUD) posicionado en la mampara izquierda del puesto B, orientado al tirador
-            BuildRangeScoreboard(rangeRoot.transform, new Vector3(3.88f, 1.65f, 5.60f), Quaternion.Euler(0f, 70f, 0f), out txtScoreboard, out txtHitToast, out btnBack);
+            // 9. Marcador Digital LED (Scoreboard HUD) adosado a la pared derecha del polígono
+            BuildRangeScoreboard(rangeRoot.transform, new Vector3(7.46f, 1.85f, 4.5f), Quaternion.Euler(0f, -90f, 0f), out txtScoreboard, out txtHitToast, out btnBack);
         }
 
         private static void BuildRangeScoreboard(Transform parent, Vector3 pos, Quaternion rot, out TextMeshProUGUI txtBoard, out TextMeshProUGUI txtToast, out Button btnBack)
@@ -851,7 +851,7 @@ namespace VRRangeAcademy.Editor
             canvas.renderMode = RenderMode.WorldSpace;
             var rt = boardGo.GetComponent<RectTransform>();
             rt.sizeDelta = new Vector2(720f, 440f);
-            rt.localScale = Vector3.one * 0.0013f;
+            rt.localScale = Vector3.one * 0.0016f;
 
             boardGo.transform.position = pos;
             boardGo.transform.rotation = rot;

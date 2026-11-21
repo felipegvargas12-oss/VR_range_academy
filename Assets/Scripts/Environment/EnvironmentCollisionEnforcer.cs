@@ -164,21 +164,12 @@ namespace VRRangeAcademy.Environment
 
         private static void EnforceScreensAlignment()
         {
-            // Asegurar que el Scoreboard_HUD no quede atravesado dentro del panel divisor de tiro
+            // Dejar la pantalla montada limpiamente en la pared de la derecha orientada hacia la galería
             var scoreboard = GameObject.Find("Scoreboard_HUD");
             if (scoreboard != null)
             {
-                var rt = scoreboard.GetComponent<RectTransform>();
-                if (rt != null)
-                {
-                    // Si está en posición conflictiva incrustada en el tabique (X entre 3.0 y 4.0 con rotación incorrecta)
-                    if (scoreboard.transform.position.x < 4.0f && scoreboard.transform.position.z > 4.0f)
-                    {
-                        // Posicionar sólidamente adosado a la cara interior del puesto B, orientado hacia el tirador
-                        scoreboard.transform.position = new Vector3(3.88f, 1.65f, 5.60f);
-                        scoreboard.transform.rotation = Quaternion.Euler(0f, 70f, 0f);
-                    }
-                }
+                scoreboard.transform.position = new Vector3(7.46f, 1.85f, 4.5f);
+                scoreboard.transform.rotation = Quaternion.Euler(0f, -90f, 0f);
             }
         }
     }
