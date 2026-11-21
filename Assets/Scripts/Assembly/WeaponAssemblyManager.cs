@@ -542,8 +542,10 @@ namespace VRRangeAcademy.Assembly
 
             var shootCtrl = gunGo.AddComponent<Shooting.WeaponShootingController>();
             int cap = w.weaponId == "M1911" ? 7 : (w.weaponId == "UZI" ? 25 : 30);
-            float rate = w.weaponId == "UZI" ? 0.10f : (w.weaponId == "M4A1" ? 0.12f : (w.weaponId == "AK74" ? 0.14f : 0.20f));
-            shootCtrl.SetupWeapon(w.weaponId, w.weaponName, w.caliber, cap, 50f, rate);
+            float rate = w.weaponId == "UZI" ? 0.075f : (w.weaponId == "M4A1" ? 0.088f : (w.weaponId == "AK74" ? 0.098f : 0.18f));
+            bool canAuto = w.weaponId != "M1911";
+            var initialMode = canAuto ? Shooting.WeaponFireMode.FullAuto : Shooting.WeaponFireMode.SemiAuto;
+            shootCtrl.SetupWeapon(w.weaponId, w.weaponName, w.caliber, cap, 50f, rate, canAuto, initialMode);
         }
 
         public void OnProceedToShootingRange()

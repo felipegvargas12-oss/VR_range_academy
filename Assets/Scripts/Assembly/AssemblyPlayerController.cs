@@ -387,8 +387,8 @@ namespace VRRangeAcademy.Assembly
 
             // 3. Barra de ayuda inferior para teclado y ratón
             GUI.skin.box.fontSize = 13;
-            string controlsText = "[W,A,S,D] Moverse | [Espacio] Saltar | [Shift] Correr | [Ratón] Mirar | [Clic / E] Agarrar | [T] Polígono | [Tab] Cursor";
-            GUI.Box(new Rect(Screen.width * 0.5f - 470f, Screen.height - 40f, 940f, 30f), controlsText);
+            string controlsText = "[W,A,S,D] Moverse | [Espacio] Saltar | [Shift] Correr | [Ratón] Mirar | [Clic / E] Agarrar | [B] Modo Tiro | [T] Polígono | [Tab] Cursor";
+            GUI.Box(new Rect(Screen.width * 0.5f - 520f, Screen.height - 40f, 1040f, 30f), controlsText);
         }
     }
 }

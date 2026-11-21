@@ -1,9 +1,16 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 namespace VRRangeAcademy.Shooting
 {
+    public enum WeaponFireMode
+    {
+        SemiAuto,
+        FullAuto
+    }
+
     public class WeaponShootingController : MonoBehaviour
     {
         [Header("Datos Balísticos")]
@@ -12,9 +19,15 @@ namespace VRRangeAcademy.Shooting
         public string caliber = ".45 ACP";
         public int magazineCapacity = 7;
         public int currentAmmo = 7;
-        public float fireRate = 0.20f;
+        public float fireRate = 0.18f;
         public float damage = 50f;
         public float bulletRange = 100f;
+
+        [Header("Modo de Disparo")]
+        public WeaponFireMode fireMode = WeaponFireMode.SemiAuto;
+        public bool canSwitchFireMode = false;
+        [SerializeField] private float semiFireRate = 0.16f;
+        [SerializeField] private float autoFireRate = 0.088f;
 
         [Header("Posicionamiento en Primera Persona")]
         [SerializeField] private Vector3 hipPosition = new Vector3(0.24f, -0.22f, 0.45f);
@@ -28,9 +41,13 @@ namespace VRRangeAcademy.Shooting
 
         [Header("Audio")]
         [SerializeField] private AudioSource audioSource;
-        private AudioClip gunshotClip;
-        private AudioClip reloadClip;
-        private AudioClip dryFireClip;
+        [SerializeField] private AudioClip[] gunshotClips;
+        [SerializeField] private AudioClip reloadMagOutClip;
+        [SerializeField] private AudioClip reloadMagInClip;
+        [SerializeField] private AudioClip reloadChargeClip;
+        [SerializeField] private AudioClip selectorSwitchClip;
+        [SerializeField] private AudioClip dryFireClip;
+        [SerializeField] private float gunshotPitch = 1.0f;
 
         private float lastFireTime = 0f;
         private bool isReloading = false;
@@ -43,22 +60,22 @@ namespace VRRangeAcademy.Shooting
         private Vector3 targetRecoilEuler;
         [SerializeField] private float recoilKickAngle = 2.4f;
 
+        // VR Input Tracking
+        private bool wasVrTriggerHeld = false;
+        private bool wasVrSecondaryHeld = false;
+
         private void Awake()
         {
             if (audioSource == null)
             {
                 audioSource = gameObject.AddComponent<AudioSource>();
                 audioSource.playOnAwake = false;
-                audioSource.spatialBlend = 0.3f;
+                audioSource.spatialBlend = 0.25f;
             }
-
-            gunshotClip = CreateGunshotSound(caliber);
-            reloadClip = CreateReloadSound();
-            dryFireClip = CreateDryFireSound();
 
             currentAmmo = magazineCapacity;
 
-            // Muzzle light si no está asignada
+            // Muzzle light si no está asignada (en la boca del cañón)
             if (muzzleLight == null)
             {
                 var lightGo = new GameObject("Muzzle_Light");
@@ -66,7 +83,7 @@ namespace VRRangeAcademy.Shooting
                 lightGo.transform.localPosition = new Vector3(0f, 0.05f, -0.35f);
                 muzzleLight = lightGo.AddComponent<Light>();
                 muzzleLight.type = LightType.Point;
-                muzzleLight.range = 5f;
+                muzzleLight.range = 5.5f;
                 muzzleLight.color = new Color(1.0f, 0.85f, 0.4f);
                 muzzleLight.intensity = 0f;
                 muzzleLight.enabled = false;
@@ -77,14 +94,14 @@ namespace VRRangeAcademy.Shooting
             tracerGo.transform.SetParent(transform, false);
             tracerLine = tracerGo.AddComponent<LineRenderer>();
             tracerLine.useWorldSpace = true;
-            tracerLine.startWidth = 0.02f;
-            tracerLine.endWidth = 0.005f;
+            tracerLine.startWidth = 0.022f;
+            tracerLine.endWidth = 0.006f;
             tracerLine.positionCount = 2;
             tracerLine.enabled = false;
             var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
             var traceMat = new Material(shader);
-            traceMat.color = new Color(1f, 0.9f, 0.4f, 0.9f);
-            if (traceMat.HasProperty("_BaseColor")) traceMat.SetColor("_BaseColor", new Color(1f, 0.9f, 0.4f, 0.9f));
+            traceMat.color = new Color(1f, 0.9f, 0.4f, 0.95f);
+            if (traceMat.HasProperty("_BaseColor")) traceMat.SetColor("_BaseColor", new Color(1f, 0.9f, 0.4f, 0.95f));
             tracerLine.material = traceMat;
         }
 
@@ -95,7 +112,7 @@ namespace VRRangeAcademy.Shooting
             transform.localRotation = Quaternion.Euler(baseRotation);
         }
 
-        public void SetupWeapon(string id, string name, string cal, int magCap, float dmg, float rate)
+        public void SetupWeapon(string id, string name, string cal, int magCap, float dmg, float rate, bool allowFullAuto = false, WeaponFireMode initialMode = WeaponFireMode.SemiAuto)
         {
             weaponId = id;
             weaponName = name;
@@ -103,9 +120,112 @@ namespace VRRangeAcademy.Shooting
             magazineCapacity = magCap;
             currentAmmo = magCap;
             damage = dmg;
-            fireRate = rate;
+            canSwitchFireMode = allowFullAuto;
+            fireMode = initialMode;
 
-            gunshotClip = CreateGunshotSound(caliber);
+            if (allowFullAuto)
+            {
+                autoFireRate = rate;
+                semiFireRate = Mathf.Max(rate * 1.4f, 0.13f);
+            }
+            else
+            {
+                autoFireRate = rate;
+                semiFireRate = rate;
+            }
+
+            LoadRealisticAudioClips(id);
+        }
+
+        private void LoadRealisticAudioClips(string id)
+        {
+            List<AudioClip> shots = new List<AudioClip>();
+
+            if (id == "M1911")
+            {
+                gunshotPitch = 1.0f;
+                recoilKickAngle = 2.8f;
+                TryAddClip(shots, "Assets/FreeWeaponSFX_v1.1/Handgun/Gunshots/sfx_wpn_hgn_gunshot_01.wav");
+                TryAddClip(shots, "Assets/FreeWeaponSFX_v1.1/Handgun/Gunshots/sfx_wpn_hgn_gunshot_02.wav");
+                TryAddClip(shots, "Assets/FreeWeaponSFX_v1.1/Handgun/Gunshots/sfx_wpn_hgn_gunshot_03.wav");
+
+                reloadMagOutClip = LoadClip("Assets/FreeWeaponSFX_v1.1/Handgun/Reload/sfx_wpn_hgn_reload_02_magOut.wav");
+                reloadMagInClip = LoadClip("Assets/FreeWeaponSFX_v1.1/Handgun/Reload/sfx_wpn_hgn_reload_04_magIn.wav");
+                reloadChargeClip = LoadClip("Assets/FreeWeaponSFX_v1.1/Handgun/Reload/sfx_wpn_hgn_reload_05_charge.wav");
+                selectorSwitchClip = LoadClip("Assets/FreeWeaponSFX_v1.1/Handgun/Foley/sfx_wpn_hgn_foley_aim_02.wav");
+                dryFireClip = LoadClip("Assets/FreeWeaponSFX_v1.1/Handgun/Foley/sfx_wpn_hgn_foley_aim_01.wav");
+            }
+            else if (id == "M4A1")
+            {
+                gunshotPitch = 1.02f;
+                recoilKickAngle = 1.9f;
+                TryAddClip(shots, "Assets/FreeWeaponSFX_v1.1/AssaultRifle/Gunshots/sfx_wpn_ar_gunshot_01.wav");
+                TryAddClip(shots, "Assets/FreeWeaponSFX_v1.1/AssaultRifle/Gunshots/sfx_wpn_ar_gunshot_02.wav");
+                TryAddClip(shots, "Assets/FreeWeaponSFX_v1.1/AssaultRifle/Gunshots/sfx_wpn_ar_gunshot_03.wav");
+
+                reloadMagOutClip = LoadClip("Assets/FreeWeaponSFX_v1.1/AssaultRifle/Reload/sfx_wpn_ar_reload_01_magOut.wav");
+                reloadMagInClip = LoadClip("Assets/FreeWeaponSFX_v1.1/AssaultRifle/Reload/sfx_wpn_ar_reload_03_magIn.wav");
+                reloadChargeClip = LoadClip("Assets/FreeWeaponSFX_v1.1/AssaultRifle/Reload/sfx_wpn_ar_reload_04_charge.wav");
+                selectorSwitchClip = LoadClip("Assets/FreeWeaponSFX_v1.1/AssaultRifle/Foley/sfx_wpn_ar_foley_aim_02.wav");
+                dryFireClip = LoadClip("Assets/FreeWeaponSFX_v1.1/AssaultRifle/Foley/sfx_wpn_ar_foley_aim_01.wav");
+            }
+            else if (id == "AK74")
+            {
+                gunshotPitch = 0.94f;
+                recoilKickAngle = 2.2f;
+                TryAddClip(shots, "Assets/FreeWeaponSFX_v1.1/AssaultRifle/Gunshots/sfx_wpn_ar_gunshot_02.wav");
+                TryAddClip(shots, "Assets/FreeWeaponSFX_v1.1/AssaultRifle/Gunshots/sfx_wpn_ar_gunshot_01.wav");
+                TryAddClip(shots, "Assets/FreeWeaponSFX_v1.1/AssaultRifle/Gunshots/sfx_wpn_ar_gunshot_03.wav");
+
+                reloadMagOutClip = LoadClip("Assets/FreeWeaponSFX_v1.1/AssaultRifle/Reload/sfx_wpn_ar_reload_01_magOut.wav");
+                reloadMagInClip = LoadClip("Assets/FreeWeaponSFX_v1.1/AssaultRifle/Reload/sfx_wpn_ar_reload_03_magIn.wav");
+                reloadChargeClip = LoadClip("Assets/FreeWeaponSFX_v1.1/AssaultRifle/Reload/sfx_wpn_ar_reload_04_charge.wav");
+                selectorSwitchClip = LoadClip("Assets/FreeWeaponSFX_v1.1/AssaultRifle/Foley/sfx_wpn_ar_foley_aim_02.wav");
+                dryFireClip = LoadClip("Assets/FreeWeaponSFX_v1.1/AssaultRifle/Foley/sfx_wpn_ar_foley_aim_01.wav");
+            }
+            else if (id == "UZI")
+            {
+                gunshotPitch = 1.15f;
+                recoilKickAngle = 1.6f;
+                TryAddClip(shots, "Assets/FreeWeaponSFX_v1.1/AssaultRifle/Gunshots/sfx_wpn_ar_gunshot_03.wav");
+                TryAddClip(shots, "Assets/FreeWeaponSFX_v1.1/Handgun/Gunshots/sfx_wpn_hgn_gunshot_02.wav");
+                TryAddClip(shots, "Assets/FreeWeaponSFX_v1.1/Handgun/Gunshots/sfx_wpn_hgn_gunshot_01.wav");
+
+                reloadMagOutClip = LoadClip("Assets/FreeWeaponSFX_v1.1/Handgun/Reload/sfx_wpn_hgn_reload_02_magOut.wav");
+                reloadMagInClip = LoadClip("Assets/FreeWeaponSFX_v1.1/Handgun/Reload/sfx_wpn_hgn_reload_04_magIn.wav");
+                reloadChargeClip = LoadClip("Assets/FreeWeaponSFX_v1.1/Handgun/Reload/sfx_wpn_hgn_reload_05_charge.wav");
+                selectorSwitchClip = LoadClip("Assets/FreeWeaponSFX_v1.1/AssaultRifle/Foley/sfx_wpn_ar_foley_aim_02.wav");
+                dryFireClip = LoadClip("Assets/FreeWeaponSFX_v1.1/Handgun/Foley/sfx_wpn_hgn_foley_aim_01.wav");
+            }
+
+            // Fallback sintético si no se encontró algún clip
+            if (shots.Count > 0)
+            {
+                gunshotClips = shots.ToArray();
+            }
+            else
+            {
+                gunshotClips = new AudioClip[] { CreateSyntheticGunshot(caliber) };
+            }
+
+            if (reloadChargeClip == null) reloadChargeClip = CreateSyntheticReload();
+            if (dryFireClip == null) dryFireClip = CreateSyntheticDryFire();
+            if (selectorSwitchClip == null) selectorSwitchClip = CreateSyntheticSelectorClick();
+        }
+
+        private static AudioClip LoadClip(string path)
+        {
+#if UNITY_EDITOR
+            return UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(path);
+#else
+            return null;
+#endif
+        }
+
+        private static void TryAddClip(List<AudioClip> list, string path)
+        {
+            var clip = LoadClip(path);
+            if (clip != null) list.Add(clip);
         }
 
         private void Update()
@@ -115,26 +235,75 @@ namespace VRRangeAcademy.Shooting
             UpdateRecoil();
         }
 
+        public void ToggleFireMode()
+        {
+            if (!canSwitchFireMode) return;
+
+            fireMode = fireMode == WeaponFireMode.SemiAuto ? WeaponFireMode.FullAuto : WeaponFireMode.SemiAuto;
+            PlaySound(selectorSwitchClip, 1.15f);
+
+            string modeName = fireMode == WeaponFireMode.FullAuto ? "AUTOMÁTICO (RÁFAGA)" : "SEMIAUTOMÁTICO (TIRO A TIRO)";
+            Debug.Log($"<color=#00FFCC>[Selector de Tiro] {weaponName}: {modeName}</color>");
+        }
+
         private void HandleInput()
         {
-            // Solo actuar si el cursor está capturado o apuntando
-            bool firePressed = false;
-            bool reloadPressed = false;
-            isAiming = false;
-
-            if (Mouse.current != null)
-            {
-                firePressed = Mouse.current.leftButton.wasPressedThisFrame;
-                isAiming = Mouse.current.rightButton.isPressed;
-            }
-
+            // 1. Selector de modo de disparo: Tecla [B] o [V], mando VR (botón B o X) o D-pad
+            bool toggleModePressed = false;
             if (Keyboard.current != null)
             {
-                if (Keyboard.current.spaceKey.wasPressedThisFrame) firePressed = true;
-                reloadPressed = Keyboard.current.rKey.wasPressedThisFrame;
+                if (Keyboard.current.bKey.wasPressedThisFrame || Keyboard.current.vKey.wasPressedThisFrame)
+                {
+                    toggleModePressed = true;
+                }
+            }
+            if (Gamepad.current != null)
+            {
+                if (Gamepad.current.dpad.left.wasPressedThisFrame || Gamepad.current.dpad.right.wasPressedThisFrame || Gamepad.current.buttonWest.wasPressedThisFrame)
+                {
+                    toggleModePressed = true;
+                }
+            }
+            if (IsVrSecondaryButtonPressed())
+            {
+                toggleModePressed = true;
             }
 
-            if (firePressed && Time.time >= lastFireTime + fireRate && !isReloading)
+            if (toggleModePressed && canSwitchFireMode)
+            {
+                ToggleFireMode();
+            }
+
+            // 2. Detección de Disparo: Continuo en FullAuto vs Golpe único en SemiAuto
+            bool isFiring = false;
+            if (fireMode == WeaponFireMode.FullAuto)
+            {
+                if (Mouse.current != null && Mouse.current.leftButton.isPressed) isFiring = true;
+                if (Keyboard.current != null && Keyboard.current.spaceKey.isPressed) isFiring = true;
+                if (Gamepad.current != null && Gamepad.current.rightTrigger.ReadValue() > 0.4f) isFiring = true;
+                if (IsVrTriggerHeld()) isFiring = true;
+            }
+            else
+            {
+                if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame) isFiring = true;
+                if (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame) isFiring = true;
+                if (Gamepad.current != null && Gamepad.current.rightTrigger.wasPressedThisFrame) isFiring = true;
+                if (IsVrTriggerPressedThisFrame()) isFiring = true;
+            }
+
+            // 3. Apuntado (ADS)
+            isAiming = false;
+            if (Mouse.current != null && Mouse.current.rightButton.isPressed) isAiming = true;
+            if (Gamepad.current != null && Gamepad.current.leftTrigger.ReadValue() > 0.4f) isAiming = true;
+            if (IsVrGripHeld()) isAiming = true;
+
+            // 4. Recarga con [R] o botón de recarga
+            bool reloadPressed = false;
+            if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame) reloadPressed = true;
+            if (Gamepad.current != null && Gamepad.current.buttonNorth.wasPressedThisFrame) reloadPressed = true;
+
+            float currentRate = fireMode == WeaponFireMode.FullAuto ? autoFireRate : semiFireRate;
+            if (isFiring && Time.time >= lastFireTime + currentRate && !isReloading)
             {
                 TryShoot();
             }
@@ -144,6 +313,67 @@ namespace VRRangeAcademy.Shooting
                 StartCoroutine(ReloadSequence());
             }
         }
+
+        #region VR Input Helpers (Meta Quest 3)
+        private bool IsVrTriggerHeld()
+        {
+            var rightDevices = new List<UnityEngine.XR.InputDevice>();
+            UnityEngine.XR.InputDevices.GetDevicesWithCharacteristics(
+                UnityEngine.XR.InputDeviceCharacteristics.Right | UnityEngine.XR.InputDeviceCharacteristics.Controller,
+                rightDevices
+            );
+            for (int i = 0; i < rightDevices.Count; i++)
+            {
+                if (rightDevices[i].TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float triggerVal) && triggerVal > 0.45f)
+                    return true;
+            }
+            return false;
+        }
+
+        private bool IsVrTriggerPressedThisFrame()
+        {
+            bool isHeld = IsVrTriggerHeld();
+            bool pressed = isHeld && !wasVrTriggerHeld;
+            wasVrTriggerHeld = isHeld;
+            return pressed;
+        }
+
+        private bool IsVrSecondaryButtonPressed()
+        {
+            var rightDevices = new List<UnityEngine.XR.InputDevice>();
+            UnityEngine.XR.InputDevices.GetDevicesWithCharacteristics(
+                UnityEngine.XR.InputDeviceCharacteristics.Right | UnityEngine.XR.InputDeviceCharacteristics.Controller,
+                rightDevices
+            );
+            bool held = false;
+            for (int i = 0; i < rightDevices.Count; i++)
+            {
+                if (rightDevices[i].TryGetFeatureValue(UnityEngine.XR.CommonUsages.secondaryButton, out bool bVal) && bVal)
+                {
+                    held = true;
+                    break;
+                }
+            }
+            bool pressed = held && !wasVrSecondaryHeld;
+            wasVrSecondaryHeld = held;
+            return pressed;
+        }
+
+        private bool IsVrGripHeld()
+        {
+            var rightDevices = new List<UnityEngine.XR.InputDevice>();
+            UnityEngine.XR.InputDevices.GetDevicesWithCharacteristics(
+                UnityEngine.XR.InputDeviceCharacteristics.Right | UnityEngine.XR.InputDeviceCharacteristics.Controller,
+                rightDevices
+            );
+            for (int i = 0; i < rightDevices.Count; i++)
+            {
+                if (rightDevices[i].TryGetFeatureValue(UnityEngine.XR.CommonUsages.grip, out float gripVal) && gripVal > 0.45f)
+                    return true;
+            }
+            return false;
+        }
+        #endregion
 
         private void TryShoot()
         {
@@ -161,14 +391,18 @@ namespace VRRangeAcademy.Shooting
 
         private void ExecuteShot()
         {
-            // 1. Sonido de detonación
-            PlaySound(gunshotClip, Random.Range(0.96f, 1.04f));
+            // 1. Sonido de detonación realista (variación aleatoria de disparos reales)
+            if (gunshotClips != null && gunshotClips.Length > 0)
+            {
+                int idx = Random.Range(0, gunshotClips.Length);
+                PlaySound(gunshotClips[idx], gunshotPitch * Random.Range(0.97f, 1.03f));
+            }
 
             // 2. Destello de boca de cañón (Muzzle Flash)
             StartCoroutine(FlashMuzzleLight());
 
-            // 3. Retroceso
-            targetRecoilEuler += new Vector3(-recoilKickAngle, Random.Range(-0.4f, 0.4f), 0f);
+            // 3. Retroceso balístico
+            targetRecoilEuler += new Vector3(-recoilKickAngle, Random.Range(-0.35f, 0.35f), 0f);
 
             // 4. Registrar disparo en el polígono
             if (ShootingRangeManager.Instance != null)
@@ -209,8 +443,8 @@ namespace VRRangeAcademy.Shooting
             if (muzzleLight != null)
             {
                 muzzleLight.enabled = true;
-                muzzleLight.intensity = Random.Range(4.5f, 6.0f);
-                yield return new WaitForSeconds(0.045f);
+                muzzleLight.intensity = Random.Range(5.0f, 6.5f);
+                yield return new WaitForSeconds(0.04f);
                 muzzleLight.enabled = false;
             }
         }
@@ -222,7 +456,7 @@ namespace VRRangeAcademy.Shooting
                 tracerLine.enabled = true;
                 tracerLine.SetPosition(0, start);
                 tracerLine.SetPosition(1, end);
-                yield return new WaitForSeconds(0.06f);
+                yield return new WaitForSeconds(0.05f);
                 tracerLine.enabled = false;
             }
         }
@@ -230,9 +464,31 @@ namespace VRRangeAcademy.Shooting
         private IEnumerator ReloadSequence()
         {
             isReloading = true;
-            PlaySound(reloadClip, 1.0f);
 
-            yield return new WaitForSeconds(1.2f);
+            // Fase 1: Extraer cargador vacío
+            if (reloadMagOutClip != null)
+            {
+                PlaySound(reloadMagOutClip, 1.0f);
+            }
+            yield return new WaitForSeconds(0.38f);
+
+            // Fase 2: Insertar cargador nuevo
+            if (reloadMagInClip != null)
+            {
+                PlaySound(reloadMagInClip, 1.0f);
+            }
+            else if (reloadChargeClip != null)
+            {
+                PlaySound(reloadChargeClip, 1.0f);
+            }
+            yield return new WaitForSeconds(0.42f);
+
+            // Fase 3: Accionar corredera / cerrojo
+            if (reloadChargeClip != null)
+            {
+                PlaySound(reloadChargeClip, 1.05f);
+            }
+            yield return new WaitForSeconds(0.30f);
 
             currentAmmo = magazineCapacity;
             isReloading = false;
@@ -265,17 +521,13 @@ namespace VRRangeAcademy.Shooting
                 float th = 2f;
 
                 GUI.color = new Color(0f, 1f, 0.85f, 0.8f);
-                // Superior
                 GUI.DrawTexture(new Rect(cx - th * 0.5f, cy - gap - len, th, len), Texture2D.whiteTexture);
-                // Inferior
                 GUI.DrawTexture(new Rect(cx - th * 0.5f, cy + gap, th, len), Texture2D.whiteTexture);
-                // Izquierda
                 GUI.DrawTexture(new Rect(cx - gap - len, cy - th * 0.5f, len, th), Texture2D.whiteTexture);
-                // Derecha
                 GUI.DrawTexture(new Rect(cx + gap, cy - th * 0.5f, len, th), Texture2D.whiteTexture);
             }
 
-            // HUD inferior de munición
+            // HUD inferior derecho de munición y modo de fuego
             var style = new GUIStyle(GUI.skin.label)
             {
                 fontSize = 20,
@@ -283,22 +535,32 @@ namespace VRRangeAcademy.Shooting
                 alignment = TextAnchor.MiddleRight
             };
 
-            float panelW = 320f;
-            float panelH = 65f;
+            float panelW = 340f;
+            float panelH = 68f;
             float x = Screen.width - panelW - 30f;
             float y = Screen.height - panelH - 30f;
 
-            GUI.color = new Color(0.04f, 0.12f, 0.18f, 0.85f);
+            GUI.color = new Color(0.04f, 0.12f, 0.18f, 0.90f);
             GUI.DrawTexture(new Rect(x, y, panelW, panelH), Texture2D.whiteTexture);
 
+            // Borde superior cian
+            GUI.color = new Color(0f, 0.85f, 1f, 0.75f);
+            GUI.DrawTexture(new Rect(x, y, panelW, 2f), Texture2D.whiteTexture);
+
+            // Contador de munición
             GUI.color = isReloading ? new Color(1f, 0.8f, 0.2f) : (currentAmmo == 0 ? new Color(1f, 0.25f, 0.25f) : Color.white);
             string ammoText = isReloading ? "RECARGANDO..." : $"{currentAmmo} / {magazineCapacity}";
             GUI.Label(new Rect(x + 10f, y + 8f, panelW - 20f, 26f), ammoText, style);
 
+            // Indicador del Modo de Fuego activo
+            string modeStr = fireMode == WeaponFireMode.FullAuto ? "[AUTO]" : "[SEMI]";
+            string modeColor = fireMode == WeaponFireMode.FullAuto ? "#00FF99" : "#FFCC00";
+            string switchHint = canSwitchFireMode ? " | [B] Modo" : "";
+
             style.fontSize = 13;
             style.fontStyle = FontStyle.Normal;
             GUI.color = new Color(0.2f, 0.9f, 1.0f);
-            GUI.Label(new Rect(x + 10f, y + 36f, panelW - 20f, 22f), $"{weaponName.ToUpper()}  [{caliber}]  |  [R] Recargar", style);
+            GUI.Label(new Rect(x + 10f, y + 37f, panelW - 20f, 22f), $"{weaponName.ToUpper()}  {modeStr}  [{caliber}]{switchHint}  |  [R] Recargar", style);
             GUI.color = Color.white;
         }
 
@@ -311,26 +573,21 @@ namespace VRRangeAcademy.Shooting
             }
         }
 
-        #region Generadores de Audio Balístico
-        private static AudioClip CreateGunshotSound(string cal)
+        #region Generadores de Audio Balístico (Fallback Sintético)
+        private static AudioClip CreateSyntheticGunshot(string cal)
         {
             int sampleRate = 44100;
             float duration = 0.45f;
             int length = (int)(sampleRate * duration);
             float[] data = new float[length];
-
             float baseFreq = cal.Contains(".45") ? 95f : (cal.Contains("5.56") ? 140f : (cal.Contains("5.45") ? 130f : 160f));
 
             for (int i = 0; i < length; i++)
             {
                 float t = (float)i / sampleRate;
-                // Impulso inicial explosivo (Crack ultrasónico de salida de cañón)
                 float initialCrack = Mathf.Exp(-t * 110f) * (Random.value * 2f - 1f) * 1.0f;
-                // Golpe subsónico concusivo profundo
                 float boom = Mathf.Sin(2f * Mathf.PI * baseFreq * Mathf.Exp(-t * 22f) * t) * Mathf.Exp(-t * 12f) * 0.8f;
-                // Ruido de expansión y reverberación de cañón
                 float tail = (Random.value * 2f - 1f) * Mathf.Exp(-t * 8f) * 0.35f;
-
                 data[i] = Mathf.Clamp(initialCrack + boom + tail, -1f, 1f) * 0.95f;
             }
 
@@ -339,28 +596,27 @@ namespace VRRangeAcademy.Shooting
             return clip;
         }
 
-        private static AudioClip CreateReloadSound()
+        private static AudioClip CreateSyntheticReload()
         {
             int sampleRate = 44100;
-            int length = (int)(sampleRate * 0.8f);
+            int length = (int)(sampleRate * 0.7f);
             float[] data = new float[length];
             for (int i = 0; i < length; i++)
             {
                 float t = (float)i / sampleRate;
-                float eject = Mathf.Exp(-Mathf.Abs(t - 0.15f) * 60f) * Mathf.Sin(2f * Mathf.PI * 1800f * t) * 0.5f;
-                float insert = Mathf.Exp(-Mathf.Abs(t - 0.45f) * 50f) * Mathf.Sin(2f * Mathf.PI * 950f * t) * 0.7f;
-                float rack = Mathf.Exp(-Mathf.Abs(t - 0.68f) * 70f) * Mathf.Sin(2f * Mathf.PI * 1400f * t) * 0.8f;
-                data[i] = eject + insert + rack;
+                float insert = Mathf.Exp(-Mathf.Abs(t - 0.30f) * 50f) * Mathf.Sin(2f * Mathf.PI * 950f * t) * 0.7f;
+                float rack = Mathf.Exp(-Mathf.Abs(t - 0.55f) * 70f) * Mathf.Sin(2f * Mathf.PI * 1400f * t) * 0.8f;
+                data[i] = insert + rack;
             }
             var clip = AudioClip.Create("WeaponReload", length, 1, sampleRate, false);
             clip.SetData(data, 0);
             return clip;
         }
 
-        private static AudioClip CreateDryFireSound()
+        private static AudioClip CreateSyntheticDryFire()
         {
             int sampleRate = 44100;
-            int length = (int)(sampleRate * 0.10f);
+            int length = (int)(sampleRate * 0.08f);
             float[] data = new float[length];
             for (int i = 0; i < length; i++)
             {
@@ -368,6 +624,21 @@ namespace VRRangeAcademy.Shooting
                 data[i] = Mathf.Sin(2f * Mathf.PI * 2200f * t) * Mathf.Exp(-t * 90f) * 0.6f;
             }
             var clip = AudioClip.Create("DryFireClick", length, 1, sampleRate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
+        private static AudioClip CreateSyntheticSelectorClick()
+        {
+            int sampleRate = 44100;
+            int length = (int)(sampleRate * 0.04f);
+            float[] data = new float[length];
+            for (int i = 0; i < length; i++)
+            {
+                float t = (float)i / sampleRate;
+                data[i] = Mathf.Sin(2f * Mathf.PI * 3200f * t) * Mathf.Exp(-t * 120f) * 0.5f;
+            }
+            var clip = AudioClip.Create("SelectorClick", length, 1, sampleRate, false);
             clip.SetData(data, 0);
             return clip;
         }
