@@ -116,6 +116,11 @@ namespace VRRangeAcademy.Editor
             workbench.transform.parent = envRoot.transform;
             workbench.transform.position = new Vector3(0, 0, 1.4f);
 
+            // Bounding box collider sólido para que el jugador nunca traspase la mesa armera
+            var benchCol = workbench.AddComponent<BoxCollider>();
+            benchCol.center = new Vector3(0f, 0.45f, 0f);
+            benchCol.size = new Vector3(2.45f, 0.90f, 0.95f);
+
             // Table top
             GameObject tableTop = GameObject.CreatePrimitive(PrimitiveType.Cube);
             tableTop.name = "TableTop";
@@ -381,8 +386,8 @@ namespace VRRangeAcademy.Editor
         {
             GameObject guideObj = new GameObject("VR_ControllerGuide_HUD");
             guideObj.transform.parent = parent.transform;
-            guideObj.transform.position = new Vector3(-1.15f, 1.25f, 1.95f);
-            guideObj.transform.rotation = Quaternion.Euler(0, 22f, 0); // Angled directly towards player
+            guideObj.transform.position = new Vector3(-1.35f, 1.38f, 1.98f);
+            guideObj.transform.rotation = Quaternion.Euler(6.43f, -34.29f, 0f); // Inclinado y orientado directamente hacia el jugador
             guideObj.transform.localScale = Vector3.one * 0.0016f;
 
             Canvas guideCanvas = guideObj.AddComponent<Canvas>();
@@ -466,13 +471,42 @@ namespace VRRangeAcademy.Editor
                 inst.transform.rotation = rot;
                 inst.transform.localScale = scale;
 
-                // Las armas son estrictamente ornamentales: deshabilitamos colliders y rigidbodies
+                // Armas ornamentales vs objetos físicos
                 if (isWeapon)
                 {
-                    var colliders = inst.GetComponentsInChildren<Collider>();
-                    foreach (var c in colliders) c.enabled = false;
                     var rbs = inst.GetComponentsInChildren<Rigidbody>();
                     foreach (var rb in rbs) Object.DestroyImmediate(rb);
+
+                    if (pos.y < 0.5f)
+                    {
+                        // Armas pesadas apoyadas en suelo / trípode (e.g. M2 .50cal): collider físico para no atravesarlas
+                        var bc = inst.AddComponent<BoxCollider>();
+                        bc.size = new Vector3(1.2f, 1.1f, 1.2f);
+                        bc.center = new Vector3(0f, 0.55f, 0f);
+                    }
+                    else
+                    {
+                        // Armas en mesas o paredes: sin collider bloqueante
+                        var colliders = inst.GetComponentsInChildren<Collider>();
+                        foreach (var c in colliders) c.enabled = false;
+                    }
+                }
+                else
+                {
+                    // Props decorativos (cajas, pallets, sacos, bidones, dianas, dummies): garantizar collider
+                    if (inst.GetComponentInChildren<Collider>() == null)
+                    {
+                        var renderers = inst.GetComponentsInChildren<Renderer>();
+                        if (renderers.Length > 0)
+                        {
+                            var bc = inst.AddComponent<BoxCollider>();
+                            Bounds b = renderers[0].bounds;
+                            for (int i = 1; i < renderers.Length; i++) b.Encapsulate(renderers[i].bounds);
+                            bc.center = inst.transform.InverseTransformPoint(b.center);
+                            Vector3 sz = inst.transform.InverseTransformVector(b.size);
+                            bc.size = new Vector3(Mathf.Abs(sz.x), Mathf.Abs(sz.y), Mathf.Abs(sz.z));
+                        }
+                    }
                 }
             };
 

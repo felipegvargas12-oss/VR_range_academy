@@ -14,10 +14,12 @@ namespace VRRangeAcademy.Player
     /// </summary>
     public class DesktopPlayerController : MonoBehaviour
     {
-        [Header("Movement Settings")]
+        [Header("Movement & Physics Settings")]
         [SerializeField] private float moveSpeed = 2.5f;
         [SerializeField] private float sprintMultiplier = 1.6f;
         [SerializeField] private bool allowMovement = true;
+        [SerializeField] private float gravity = 9.81f;
+        [SerializeField] private float jumpHeight = 1.1f;
 
         [Header("Mouse Look Settings")]
         [SerializeField] private float mouseSensitivity = 2.0f;
@@ -35,9 +37,14 @@ namespace VRRangeAcademy.Player
         private float rotationY = 0f;
         private bool isCursorLocked = false;
         private CharacterController characterController;
+        private float verticalVelocity = 0f;
+        private bool wasVrJumpPressed = false;
+        private Vector3 spawnPosition;
 
         private void Awake()
         {
+            spawnPosition = transform.position;
+
             if (playerCamera == null)
             {
                 playerCamera = GetComponentInChildren<Camera>();
@@ -130,16 +137,77 @@ namespace VRRangeAcademy.Player
             float speed = moveSpeed * (isSprinting ? sprintMultiplier : 1.0f);
             Vector3 direction = (transform.forward * input.y + transform.right * input.x).normalized;
 
-            Vector3 move = direction * speed * Time.deltaTime;
+            Vector3 horizontalMove = direction * speed;
 
-            if (characterController != null && characterController.enabled)
+            bool isGrounded = characterController != null && characterController.isGrounded;
+
+            if (isGrounded)
             {
-                characterController.Move(move);
+                if (verticalVelocity < 0f)
+                {
+                    verticalVelocity = -2.0f; // Adherencia firme al suelo
+                }
+
+                if (IsJumpPressed())
+                {
+                    verticalVelocity = Mathf.Sqrt(jumpHeight * 2f * gravity);
+                }
             }
             else
             {
-                transform.position += move;
+                verticalVelocity -= gravity * Time.deltaTime;
             }
+
+            Vector3 totalMove = horizontalMove + Vector3.up * verticalVelocity;
+
+            if (characterController != null && characterController.enabled)
+            {
+                characterController.Move(totalMove * Time.deltaTime);
+            }
+            else
+            {
+                transform.position += totalMove * Time.deltaTime;
+            }
+
+            // Resguardo por caída al vacío
+            if (transform.position.y < -10f)
+            {
+                if (characterController != null) characterController.enabled = false;
+                transform.position = spawnPosition;
+                if (characterController != null) characterController.enabled = true;
+                verticalVelocity = 0f;
+            }
+        }
+
+        private bool IsJumpPressed()
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame) return true;
+            if (Gamepad.current != null && Gamepad.current.buttonSouth.wasPressedThisFrame) return true;
+#else
+            if (Input.GetKeyDown(KeyCode.Space)) return true;
+#endif
+
+            // Soporte para mandos VR (Meta Quest 3 - Botón A en controlador derecho)
+            var rightDevices = new List<UnityEngine.XR.InputDevice>();
+            UnityEngine.XR.InputDevices.GetDevicesWithCharacteristics(
+                UnityEngine.XR.InputDeviceCharacteristics.Right | UnityEngine.XR.InputDeviceCharacteristics.Controller,
+                rightDevices
+            );
+            bool vrPressed = false;
+            for (int i = 0; i < rightDevices.Count; i++)
+            {
+                if (rightDevices[i].TryGetFeatureValue(UnityEngine.XR.CommonUsages.primaryButton, out bool primary) && primary)
+                {
+                    vrPressed = true;
+                    break;
+                }
+            }
+            bool vrJump = vrPressed && !wasVrJumpPressed;
+            wasVrJumpPressed = vrPressed;
+            if (vrJump) return true;
+
+            return false;
         }
 
         private void HandleCenterRayInteraction()
@@ -241,12 +309,12 @@ namespace VRRangeAcademy.Player
 
             string status = isCursorLocked ? "<color=#00FF88>MIRAR ACTIVO</color>" : "<color=#38B6FF>CURSO LIBRE (CLIC)</color>";
             string hint = $"<b>[Modo PC / Teclado]</b> Estado: {status}\n" +
-                          "• <b>WASD:</b> Moverse  |  <b>Shift:</b> Correr\n" +
+                          "• <b>WASD:</b> Moverse  |  <b>Shift:</b> Correr  |  <b>Espacio:</b> Saltar\n" +
                           "• <b>Tab / Esc:</b> Alternar Bloqueo de Ratón / Puntero\n" +
                           "• <b>Clic Izquierdo:</b> Seleccionar botones del Menú\n" +
                           "• <b>Clic Derecho (mantener):</b> Mirar alrededor libremente";
 
-            GUI.Box(new Rect(15, 15, 390, 95), hint, style);
+            GUI.Box(new Rect(15, 15, 410, 95), hint, style);
 
             // Crosshair en el centro cuando el cursor está bloqueado
             if (isCursorLocked)

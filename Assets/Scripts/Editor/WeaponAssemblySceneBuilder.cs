@@ -277,6 +277,11 @@ namespace VRRangeAcademy.Editor
             benchRoot.transform.SetParent(root.transform);
             benchRoot.transform.position = new Vector3(0f, 0f, 1.42f);
 
+            // Bounding box collider sólido para que el jugador nunca traspase la mesa de trabajo
+            var benchCol = benchRoot.AddComponent<BoxCollider>();
+            benchCol.center = new Vector3(0f, 0.525f, 0f);
+            benchCol.size = new Vector3(2.55f, 1.05f, 1.15f);
+
             var propsFbx = "Assets/Defensive_props/models/Defensive_props.fbx";
 
             // Modelo físico del banco: Rotado 90 grados para quedar ancho (2.52m de ancho)
@@ -833,22 +838,23 @@ namespace VRRangeAcademy.Editor
                 SetField(hitRec3, "distanceMeters", 18f);
             }
 
-            // 9. Marcador Digital LED (Scoreboard HUD) adosado a la pared derecha del polígono
-            BuildRangeScoreboard(rangeRoot.transform, new Vector3(7.45f, 1.85f, 4.5f), Quaternion.Euler(0f, 90f, 0f), out txtScoreboard, out txtHitToast, out btnBack);
+            // 9. Marcador Digital LED (Scoreboard HUD) adosado a la pared derecha del polígono (orientado hacia la galería)
+            BuildRangeScoreboard(rangeRoot.transform, new Vector3(7.46f, 1.85f, 4.5f), Quaternion.Euler(0f, 90f, 0f), out txtScoreboard, out txtHitToast, out btnBack);
         }
 
         private static void BuildRangeScoreboard(Transform parent, Vector3 pos, Quaternion rot, out TextMeshProUGUI txtBoard, out TextMeshProUGUI txtToast, out Button btnBack)
         {
             var boardGo = new GameObject("Scoreboard_HUD");
             boardGo.transform.SetParent(parent, false);
-            boardGo.transform.position = pos;
-            boardGo.transform.rotation = rot;
 
             var canvas = boardGo.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.WorldSpace;
             var rt = boardGo.GetComponent<RectTransform>();
             rt.sizeDelta = new Vector2(720f, 440f);
             rt.localScale = Vector3.one * 0.0016f;
+
+            boardGo.transform.position = pos;
+            boardGo.transform.rotation = rot;
 
             boardGo.AddComponent<CanvasScaler>();
             boardGo.AddComponent<GraphicRaycaster>();
@@ -893,7 +899,6 @@ namespace VRRangeAcademy.Editor
             dL.transform.SetParent(parent, false);
             dL.transform.position = new Vector3(centerX - 0.78f, 1.6f, centerZ - 0.25f);
             dL.transform.localScale = new Vector3(0.07f, 2.2f, 1.5f);
-            Object.DestroyImmediate(dL.GetComponent<Collider>());
             dL.GetComponent<MeshRenderer>().sharedMaterial = matAcoustic;
 
             // Divisor derecho del carril
@@ -902,7 +907,6 @@ namespace VRRangeAcademy.Editor
             dR.transform.SetParent(parent, false);
             dR.transform.position = new Vector3(centerX + 0.78f, 1.6f, centerZ - 0.25f);
             dR.transform.localScale = new Vector3(0.07f, 2.2f, 1.5f);
-            Object.DestroyImmediate(dR.GetComponent<Collider>());
             dR.GetComponent<MeshRenderer>().sharedMaterial = matAcoustic;
 
             // Línea roja de disparo en el suelo
@@ -1005,6 +1009,10 @@ namespace VRRangeAcademy.Editor
                     mat = CreateMaterial("Mat_Defensive_props_URP", new Color(0.28f, 0.26f, 0.22f), 0.3f, 0.5f);
                 }
                 mr.sharedMaterial = mat;
+
+                // Agregar collider físico sólido para que el jugador nunca traspase los props de utilería
+                var mc = go.AddComponent<MeshCollider>();
+                mc.sharedMesh = foundMesh;
             }
 
             return go;
@@ -1021,15 +1029,27 @@ namespace VRRangeAcademy.Editor
             go.transform.rotation = rot;
             go.transform.localScale = Vector3.one * scale;
 
-            // Asegurar que las armas decorativas no tengan colliders ni rigidbodies
-            foreach (var col in go.GetComponentsInChildren<Collider>())
-            {
-                Object.DestroyImmediate(col);
-            }
+            // Asegurar que las armas decorativas no tengan rigidbodies
             foreach (var rb in go.GetComponentsInChildren<Rigidbody>())
             {
                 Object.DestroyImmediate(rb);
             }
+
+            // Si es un arma montada en trípode o suelo (pos.y < 0.5f, e.g. M2 .50 cal), dotarla de collider físico
+            if (pos.y < 0.5f)
+            {
+                var bc = go.AddComponent<BoxCollider>();
+                bc.size = new Vector3(1.2f, 1.1f, 1.2f);
+                bc.center = new Vector3(0f, 0.55f, 0f);
+            }
+            else
+            {
+                foreach (var col in go.GetComponentsInChildren<Collider>())
+                {
+                    Object.DestroyImmediate(col);
+                }
+            }
+
             foreach (var mr in go.GetComponentsInChildren<MeshRenderer>())
             {
                 if (mat != null) mr.sharedMaterial = mat;
