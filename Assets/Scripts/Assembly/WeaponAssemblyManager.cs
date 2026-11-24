@@ -310,7 +310,13 @@ namespace VRRangeAcademy.Assembly
             hologramContainer.localScale = Vector3.one * w.modelScale;
 
             // Cargar modelo FBX
-            var prefab = Resources.Load<GameObject>(w.weaponId) ?? UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(w.fbxPath);
+            GameObject prefab = Resources.Load<GameObject>(w.weaponId);
+            #if UNITY_EDITOR
+            if (prefab == null)
+             {
+                prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(w.fbxPath);
+             }
+            #endif
             if (prefab != null)
             {
                 var ghost = Instantiate(prefab, hologramContainer);
@@ -362,7 +368,13 @@ namespace VRRangeAcademy.Assembly
         {
             if (piecesContainer == null) return;
 
-            var prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(w.fbxPath);
+            GameObject prefab = Resources.Load<GameObject>(w.weaponId);
+            #if UNITY_EDITOR
+            if (prefab == null)
+             {
+                prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(w.fbxPath);
+             }
+            #endif
 
             foreach (var part in w.parts)
             {
@@ -462,11 +474,13 @@ namespace VRRangeAcademy.Assembly
 
         private Mesh FindSubmesh(string fbxPath, string meshName)
         {
+            #if UNITY_EDITOR
             var assets = UnityEditor.AssetDatabase.LoadAllAssetsAtPath(fbxPath);
             foreach (var a in assets)
             {
                 if (a is Mesh m && m.name == meshName) return m;
             }
+            #endif
             return null;
         }
 
@@ -698,7 +712,13 @@ namespace VRRangeAcademy.Assembly
             var existing = cam.GetComponentInChildren<Shooting.WeaponShootingController>();
             if (existing != null) Destroy(existing.gameObject);
 
-            var prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(w.fbxPath);
+            GameObject prefab = Resources.Load<GameObject>(w.weaponId);
+            #if UNITY_EDITOR
+            if (prefab == null)
+             {
+                prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(w.fbxPath);
+             }
+            #endif
             if (prefab == null) return;
 
             var gunGo = Instantiate(prefab, cam.transform);
