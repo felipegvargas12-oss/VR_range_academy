@@ -500,11 +500,19 @@ namespace VRRangeAcademy.Editor
             camGo.tag = "MainCamera";
             camGo.AddComponent<AudioListener>();
 
-            // Mandos Oculus Touch visuales frente a la cámara (como en el mockup)
-            var leftHand = CreateControllerVisual(camGo.transform, "LeftHand_OculusTouch", new Vector3(-0.24f, -0.22f, 0.42f), Quaternion.Euler(22f, -15f, -12f), matController);
-            var rightHand = CreateControllerVisual(camGo.transform, "RightHand_OculusTouch", new Vector3(0.24f, -0.22f, 0.42f), Quaternion.Euler(22f, 15f, 12f), matController);
+            // Mandos Oculus Touch visuales 6DoF anclados al Rig (Tracking Space OpenXR)
+            var leftHand = CreateControllerVisual(rigGo.transform, "LeftHand_OculusTouch", new Vector3(-0.24f, 1.20f, 0.65f), Quaternion.Euler(22f, -15f, -12f), matController);
+            var rightHand = CreateControllerVisual(rigGo.transform, "RightHand_OculusTouch", new Vector3(0.24f, 1.20f, 0.65f), Quaternion.Euler(22f, 15f, 12f), matController);
 
-            // Controlador híbrido (Desktop WASD + Ratón + VR)
+            var leftTracker = leftHand.AddComponent<VRRangeAcademy.Player.VRControllerTracker>();
+            leftTracker.SetNode(UnityEngine.XR.XRNode.LeftHand, new Vector3(-0.24f, 1.20f, 0.65f), new Vector3(22f, -15f, -12f));
+
+            var rightTracker = rightHand.AddComponent<VRRangeAcademy.Player.VRControllerTracker>();
+            rightTracker.SetNode(UnityEngine.XR.XRNode.RightHand, new Vector3(0.24f, 1.20f, 0.65f), new Vector3(22f, 15f, 12f));
+
+            rightHand.AddComponent<VRRangeAcademy.UI.VRRaycastPointer>();
+
+            // Controlador híbrido (Desktop WASD + Ratón + VR Meta Quest 3)
             var controllerComp = rigGo.AddComponent<Assembly.AssemblyPlayerController>();
 
             // Event System si no existe

@@ -12,14 +12,22 @@ namespace VRRangeAcademy.Editor
         [MenuItem("VR Academy/Construir Escena Menu Principal")]
         public static void BuildScene()
         {
-            // Clear existing objects except camera & light if already present, or recreate cleanly
+            var activeScene = UnityEditor.SceneManagement.EditorSceneManager.GetActiveScene();
+            foreach (var rootGo in activeScene.GetRootGameObjects())
+            {
+                if (rootGo.name.StartsWith("---") || rootGo.name == "EventSystem" || rootGo.name == "XR_Origin_Rig")
+                {
+                    Object.DestroyImmediate(rootGo);
+                }
+            }
+
             GameObject existingCam = GameObject.Find("Main Camera");
             GameObject existingLight = GameObject.Find("Directional Light");
 
             // 1. Root Folders
-            GameObject envRoot = GetOrCreateRoot("--- ENVIRONMENT (TALLER ARMERO) ---");
-            GameObject uiRoot = GetOrCreateRoot("--- UI SPATIAL (WORLD SPACE) ---");
-            GameObject playerRoot = GetOrCreateRoot("--- PLAYER (XR RIG PLACEHOLDER) ---");
+            GameObject envRoot = new GameObject("--- ENVIRONMENT (TALLER ARMERO) ---");
+            GameObject uiRoot = new GameObject("--- UI SPATIAL (WORLD SPACE) ---");
+            GameObject playerRoot = new GameObject("--- PLAYER (XR RIG PLACEHOLDER) ---");
 
             // 2. Materials
             Shader urpShader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
@@ -286,7 +294,7 @@ namespace VRRangeAcademy.Editor
 
             GameObject profileTxtObj = CreateUIText("ProfileText", profileBox.transform,
                 new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(210f, 75f),
-                "👤 PERFIL DE USUARIO:\n<size=18><b>Cadete 01</b></size>", 14, FontStyles.Normal,
+                "PERFIL DE USUARIO:\n<size=18><b>Cadete 01</b></size>", 14, FontStyles.Normal,
                 TextAlignmentOptions.Center, new Color(0.85f, 0.92f, 1.0f));
 
             // Main Title (Right Header)
@@ -315,32 +323,32 @@ namespace VRRangeAcademy.Editor
             // 1. Comenzar Capacitación
             GameObject btnStartObj = CreateUIButton("Btn_ComenzarCapacitacion", mainPanel.transform,
                 new Vector2(0.5f, 1.0f), new Vector2(0, -250f), new Vector2(920f, 72f),
-                "🛡️   COMENZAR CAPACITACIÓN", 24,
+                "[+]   COMENZAR CAPACITACIÓN", 24,
                 new Color(0.14f, 0.36f, 0.60f, 1.0f), Color.white);
 
             // 2. Campo de Tiro Libre
             GameObject btnFreeRangeObj = CreateUIButton("Btn_CampoTiroLibre", mainPanel.transform,
                 new Vector2(0.5f, 1.0f), new Vector2(0, -340f), new Vector2(920f, 72f),
-                "🎯   CAMPO DE TIRO LIBRE                                    🔒", 22,
-                new Color(0.10f, 0.22f, 0.35f, 0.85f), new Color(0.75f, 0.85f, 0.95f));
+                "[TIRO]   CAMPO DE TIRO LIBRE (POLÍGONO)", 22,
+                new Color(0.10f, 0.28f, 0.45f, 0.95f), Color.white);
 
             // 3. Calibración / Tutorial de Mandos
             GameObject btnCalibObj = CreateUIButton("Btn_Calibracion", mainPanel.transform,
                 new Vector2(0.5f, 1.0f), new Vector2(0, -430f), new Vector2(920f, 72f),
-                "🥽   CALIBRACIÓN / TUTORIAL DE MANDOS", 22,
+                "[VR]   CALIBRACIÓN / TUTORIAL DE MANDOS", 22,
                 new Color(0.10f, 0.22f, 0.35f, 0.85f), Color.white);
 
             // --- Utility Buttons ---
             // Ayuda
             GameObject btnHelpObj = CreateUIButton("Btn_Ayuda", mainPanel.transform,
                 new Vector2(0.5f, 1.0f), new Vector2(-235f, -525f), new Vector2(440f, 62f),
-                "❓   AYUDA Y NORMAS", 20,
+                "[?]   AYUDA Y NORMAS", 20,
                 new Color(0.13f, 0.28f, 0.44f, 0.95f), Color.white);
 
             // Configuración
             GameObject btnSettingsObj = CreateUIButton("Btn_Configuracion", mainPanel.transform,
                 new Vector2(0.5f, 1.0f), new Vector2(235f, -525f), new Vector2(440f, 62f),
-                "⚙️   CONFIGURACIÓN", 20,
+                "[*]   CONFIGURACIÓN", 20,
                 new Color(0.13f, 0.28f, 0.44f, 0.95f), Color.white);
 
             // --- Footer Status Bar ---
@@ -350,7 +358,7 @@ namespace VRRangeAcademy.Editor
 
             CreateUIText("FooterText", footerBar.transform,
                 new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(950f, 40f),
-                "🎮 <b>Dispositivo:</b> Meta Quest 3   |   <b>Mandos:</b> Touch Plus (use Gatillo para seleccionar)",
+                "<b>Dispositivo:</b> Meta Quest 3   |   <b>Mandos:</b> Touch Plus (use Gatillo Index para seleccionar)",
                 15, FontStyles.Normal, TextAlignmentOptions.Center, new Color(0.6f, 0.82f, 1.0f));
 
             // --- Toast Notification Panel ---
@@ -407,16 +415,16 @@ namespace VRRangeAcademy.Editor
             // Title
             CreateUIText("GuideTitle", panel.transform,
                 new Vector2(0.5f, 1.0f), new Vector2(0, -35f), new Vector2(440f, 55f),
-                "🎮 CONTROLES META QUEST 3\n<size=14><color=#7FC3FF>Touch Plus Controllers</color></size>", 19, FontStyles.Bold,
+                "CONTROLES META QUEST 3\n<size=14><color=#7FC3FF>Touch Plus Controllers</color></size>", 19, FontStyles.Bold,
                 TextAlignmentOptions.Center, new Color(0.3f, 0.85f, 1.0f));
 
             // Controls Breakdown List
             string controlsGuideText =
-                "<b>Gatillo Index (Trigger):</b>\n  ↳ Seleccionar menús / Disparar arma\n\n" +
-                "<b>Grip (Agarre medio):</b>\n  ↳ Sujetar armas, empuñadura y cargadores\n\n" +
-                "<b>Botón 'A' (Mando Der) / 'X' (Mando Izq):</b>\n  ↳ Menú rápido / Liberar cerrojo (Slide lock)\n\n" +
-                "<b>Botón 'B' / 'Y':</b>\n  ↳ Expulsar cargador / Seguro del arma\n\n" +
-                "<b>Thumbstick (Joystick):</b>\n  ↳ Desplazamiento y giro suave / por pasos";
+                "<b>Gatillo Index (Trigger):</b>\n  -> Seleccionar menús / Disparar arma\n\n" +
+                "<b>Grip (Agarre medio):</b>\n  -> Sujetar armas, empuñadura y piezas\n\n" +
+                "<b>Botón 'A' (Mando Der) / 'X' (Mando Izq):</b>\n  -> Menú rápido / Alternar Armar-Desarmar\n\n" +
+                "<b>Botón 'B' / 'Y':</b>\n  -> Soltar pieza / Alternar Polígono de Tiro\n\n" +
+                "<b>Thumbstick (Joystick):</b>\n  -> Desplazamiento (Izq) y Giro por pasos (Der)";
 
             CreateUIText("GuideBody", panel.transform,
                 new Vector2(0.5f, 0.5f), new Vector2(0, -20f), new Vector2(430f, 380f),
@@ -438,22 +446,79 @@ namespace VRRangeAcademy.Editor
 
             // Camera Setup
             GameObject camObj = existingCamera != null ? existingCamera : new GameObject("Main Camera");
+            camObj.tag = "MainCamera";
             camObj.transform.parent = rig.transform;
-            camObj.transform.position = new Vector3(0, 1.65f, 0); // Natural human standing height
+            camObj.transform.position = new Vector3(0, 1.65f, 0); // Altura natural humana de pie
             camObj.transform.rotation = Quaternion.identity;
 
-            Camera cam = camObj.GetComponent<Camera>() ?? camObj.AddComponent<Camera>();
+            Camera cam = camObj.GetComponent<Camera>();
+            if (cam == null) cam = camObj.AddComponent<Camera>();
             cam.nearClipPlane = 0.05f;
 
-            // Right Controller Placeholder with Laser Pointer
-            GameObject rightHand = new GameObject("RightHand_Controller_Sim");
+            if (camObj.GetComponent<AudioListener>() == null)
+            {
+                camObj.AddComponent<AudioListener>();
+            }
+
+            Shader ctrlShader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Standard");
+            Material matCtrl = new Material(ctrlShader);
+            matCtrl.color = new Color(0.88f, 0.90f, 0.94f);
+            if (matCtrl.HasProperty("_BaseColor")) matCtrl.SetColor("_BaseColor", new Color(0.88f, 0.90f, 0.94f));
+
+            // Mando Izquierdo (Meta Quest 3 Touch Plus)
+            GameObject leftHand = new GameObject("LeftHand_Controller");
+            leftHand.transform.parent = rig.transform;
+            leftHand.transform.localPosition = new Vector3(-0.25f, 1.25f, 0.45f);
+            var leftTracker = leftHand.AddComponent<VRRangeAcademy.Player.VRControllerTracker>();
+            leftTracker.SetNode(UnityEngine.XR.XRNode.LeftHand, new Vector3(-0.25f, 1.25f, 0.45f), Vector3.zero);
+            CreateControllerVisualGeometry(leftHand.transform, "LeftHand_Visual", matCtrl, true);
+
+            // Mando Derecho (Meta Quest 3 Touch Plus) con Rayo Láser Interactivo
+            GameObject rightHand = new GameObject("RightHand_Controller");
             rightHand.transform.parent = rig.transform;
-            rightHand.transform.position = new Vector3(0.25f, 1.25f, 0.5f);
-            rightHand.transform.rotation = Quaternion.Euler(8f, 0, 0); // Pointing slightly down towards menu
+            rightHand.transform.localPosition = new Vector3(0.25f, 1.25f, 0.45f);
+            var rightTracker = rightHand.AddComponent<VRRangeAcademy.Player.VRControllerTracker>();
+            rightTracker.SetNode(UnityEngine.XR.XRNode.RightHand, new Vector3(0.25f, 1.25f, 0.45f), Vector3.zero);
+            CreateControllerVisualGeometry(rightHand.transform, "RightHand_Visual", matCtrl, false);
 
             rightHand.AddComponent<VRRaycastPointer>();
 
             return cam;
+        }
+
+        private static void CreateControllerVisualGeometry(Transform parent, string name, Material mat, bool isLeft)
+        {
+            GameObject visual = new GameObject(name);
+            visual.transform.SetParent(parent, false);
+
+            // Empuñadura
+            GameObject handle = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            handle.name = "Handle";
+            handle.transform.SetParent(visual.transform, false);
+            handle.transform.localPosition = new Vector3(0f, -0.04f, -0.02f);
+            handle.transform.localRotation = Quaternion.Euler(20f, 0f, 0f);
+            handle.transform.localScale = new Vector3(0.032f, 0.055f, 0.032f);
+            handle.GetComponent<Renderer>().sharedMaterial = mat;
+            Object.DestroyImmediate(handle.GetComponent<Collider>());
+
+            // Frontal
+            GameObject head = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            head.name = "Faceplate";
+            head.transform.SetParent(visual.transform, false);
+            head.transform.localPosition = new Vector3(0f, 0.01f, 0.01f);
+            head.transform.localScale = new Vector3(0.045f, 0.025f, 0.055f);
+            head.GetComponent<Renderer>().sharedMaterial = mat;
+            Object.DestroyImmediate(head.GetComponent<Collider>());
+
+            // Aro de seguimiento Touch
+            GameObject ring = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            ring.name = "TrackingRing";
+            ring.transform.SetParent(visual.transform, false);
+            ring.transform.localPosition = new Vector3(isLeft ? -0.015f : 0.015f, 0.025f, 0.025f);
+            ring.transform.localRotation = Quaternion.Euler(45f, isLeft ? -15f : 15f, 0f);
+            ring.transform.localScale = new Vector3(0.065f, 0.008f, 0.065f);
+            ring.GetComponent<Renderer>().sharedMaterial = mat;
+            Object.DestroyImmediate(ring.GetComponent<Collider>());
         }
 
         private static void DecorateWorkshopEnvironment()
@@ -632,11 +697,11 @@ namespace VRRangeAcademy.Editor
         private static GameObject GetOrCreateRoot(string name)
         {
             GameObject obj = GameObject.Find(name);
-            if (obj == null)
+            if (obj != null)
             {
-                obj = new GameObject(name);
+                Object.DestroyImmediate(obj);
             }
-            return obj;
+            return new GameObject(name);
         }
 
         private static Material CreateMaterial(string name, Color color, float metallic, float smoothness, Shader shader)
@@ -697,6 +762,10 @@ namespace VRRangeAcademy.Editor
         {
             GameObject btnObj = CreateUIPanel(name, parent, anchor, anchoredPos, size, bgColor);
             Button btn = btnObj.AddComponent<Button>();
+
+            // BoxCollider con profundidad para detección inmediata por raycasts en VR
+            BoxCollider col = btnObj.AddComponent<BoxCollider>();
+            col.size = new Vector3(size.x, size.y, 20f);
 
             ColorBlock cb = btn.colors;
             cb.normalColor = bgColor;

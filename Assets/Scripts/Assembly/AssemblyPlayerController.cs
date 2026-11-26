@@ -1,6 +1,11 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.XR;
+using CommonUsages = UnityEngine.XR.CommonUsages;
+#if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
+#endif
+using VRRangeAcademy.Player;
 
 namespace VRRangeAcademy.Assembly
 {
@@ -12,16 +17,17 @@ namespace VRRangeAcademy.Assembly
         [SerializeField] private Transform leftHandAnchor;
         [SerializeField] private Transform rightHandAnchor;
 
-        [Header("Movimiento con Teclado (WASD) y Físicas")]
+        [Header("Movimiento (WASD / Thumbstick VR)")]
         [SerializeField] private float moveSpeed = 2.4f;
         [SerializeField] private float sprintMultiplier = 1.5f;
         [SerializeField] private float gravity = 9.81f;
         [SerializeField] private float jumpHeight = 1.1f;
 
-        [Header("Control de Vista con Ratón")]
+        [Header("Giro (Ratón / Snap Turn VR)")]
         [SerializeField] private float mouseSensitivity = 1.8f;
         [SerializeField] private float minPitch = -75f;
         [SerializeField] private float maxPitch = 80f;
+        [SerializeField] private float snapTurnAngle = 45f;
 
         [Header("Mecánica de Agarre (Pickup & Hold)")]
         [SerializeField] private float maxInteractDistance = 3.5f;
@@ -38,6 +44,7 @@ namespace VRRangeAcademy.Assembly
         private float verticalVelocity = 0f;
         private bool wasVrJumpPressed = false;
         private Vector3 spawnPosition;
+        private float snapTurnCooldown = 0f;
 
         private AssemblyPiece heldPiece = null;
         private AssemblyPiece hoveredPiece = null;
@@ -45,25 +52,54 @@ namespace VRRangeAcademy.Assembly
         private bool wasVrRightGrip = false;
         private bool wasVrLeftGrip = false;
         private bool wasVrToggleModePressed = false;
+        private bool wasVrRangeShortcutPressed = false;
         private Transform activeGrabberTransform = null;
+
+        private VRControllerTracker leftTracker;
+        private VRControllerTracker rightTracker;
 
         private void Awake()
         {
             spawnPosition = transform.position;
             characterController = GetComponent<CharacterController>();
+
             if (playerCamera == null)
             {
                 playerCamera = GetComponentInChildren<Camera>();
                 if (playerCamera == null) playerCamera = Camera.main;
             }
 
+            // Buscar o resolver anclajes de mandos
             if (leftHandAnchor == null)
             {
-                leftHandAnchor = playerCamera != null ? playerCamera.transform.Find("LeftHand_OculusTouch") : transform.Find("Main Camera/LeftHand_OculusTouch");
+                leftHandAnchor = transform.Find("LeftHand_OculusTouch") ?? (playerCamera != null ? playerCamera.transform.Find("LeftHand_OculusTouch") : null);
             }
             if (rightHandAnchor == null)
             {
-                rightHandAnchor = playerCamera != null ? playerCamera.transform.Find("RightHand_OculusTouch") : transform.Find("Main Camera/RightHand_OculusTouch");
+                rightHandAnchor = transform.Find("RightHand_OculusTouch") ?? (playerCamera != null ? playerCamera.transform.Find("RightHand_OculusTouch") : null);
+            }
+
+            // RE-PARENT: Los anclajes de mandos VR en OpenXR deben ser hijos del Rig (no de la cámara)
+            // para que su posición local coincida con las coordenadas del tracking space de la habitación.
+            if (leftHandAnchor != null && leftHandAnchor.parent == playerCamera?.transform)
+            {
+                leftHandAnchor.SetParent(transform, true);
+            }
+            if (rightHandAnchor != null && rightHandAnchor.parent == playerCamera?.transform)
+            {
+                rightHandAnchor.SetParent(transform, true);
+            }
+
+            // Adjuntar trackers 6DoF a los mandos
+            if (leftHandAnchor != null)
+            {
+                leftTracker = leftHandAnchor.GetComponent<VRControllerTracker>() ?? leftHandAnchor.gameObject.AddComponent<VRControllerTracker>();
+                leftTracker.SetNode(XRNode.LeftHand, new Vector3(-0.24f, 1.25f, 0.42f), new Vector3(15f, -10f, 0f));
+            }
+            if (rightHandAnchor != null)
+            {
+                rightTracker = rightHandAnchor.GetComponent<VRControllerTracker>() ?? rightHandAnchor.gameObject.AddComponent<VRControllerTracker>();
+                rightTracker.SetNode(XRNode.RightHand, new Vector3(0.24f, 1.25f, 0.42f), new Vector3(15f, 10f, 0f));
             }
 
             if (playerCamera != null)
@@ -72,7 +108,7 @@ namespace VRRangeAcademy.Assembly
             }
             yaw = transform.eulerAngles.y;
 
-            // Iniciar bloqueado para jugar directamente como en un FPS / VR simulator
+            // Iniciar bloqueado en PC para jugar directamente
             SetCursorLock(true);
         }
 
@@ -80,7 +116,7 @@ namespace VRRangeAcademy.Assembly
         {
             HandleCursorToggle();
             HandleZoneShortcuts();
-            HandleMouseLook();
+            HandleLook();
             HandleMovement();
             UpdateVrControllers();
             HandleInteraction();
@@ -90,29 +126,53 @@ namespace VRRangeAcademy.Assembly
 
         private void HandleZoneShortcuts()
         {
-            if (Keyboard.current == null) return;
-
-            if (Keyboard.current.xKey.wasPressedThisFrame)
+            // Atajos de teclado (PC)
+#if ENABLE_INPUT_SYSTEM
+            if (Keyboard.current != null)
             {
-                if (WeaponAssemblyManager.Instance != null)
+                if (Keyboard.current.xKey.wasPressedThisFrame)
                 {
-                    WeaponAssemblyManager.Instance.ToggleWorkbenchMode();
+                    WeaponAssemblyManager.Instance?.ToggleWorkbenchMode();
+                }
+
+                if (Keyboard.current.tKey.wasPressedThisFrame)
+                {
+                    ToggleBetweenWorkbenchAndRange();
                 }
             }
+#else
+            if (Input.GetKeyDown(KeyCode.X)) WeaponAssemblyManager.Instance?.ToggleWorkbenchMode();
+            if (Input.GetKeyDown(KeyCode.T)) ToggleBetweenWorkbenchAndRange();
+#endif
 
-            if (Keyboard.current.tKey.wasPressedThisFrame)
+            // Atajos de mandos VR (Meta Quest 3)
+            // Botón 'Y' (mano izquierda - secondaryButton): Alternar entre Mesa de Armado y Polígono de Tiro
+            var leftDevice = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
+            bool vrYPressed = false;
+            if (leftDevice.isValid && leftDevice.TryGetFeatureValue(CommonUsages.secondaryButton, out bool yVal) && yVal)
             {
-                var mgr = Object.FindAnyObjectByType<WeaponAssemblyManager>();
-                if (mgr != null)
+                vrYPressed = true;
+            }
+
+            if (vrYPressed && !wasVrRangeShortcutPressed)
+            {
+                ToggleBetweenWorkbenchAndRange();
+            }
+            wasVrRangeShortcutPressed = vrYPressed;
+        }
+
+        private void ToggleBetweenWorkbenchAndRange()
+        {
+            var mgr = Object.FindAnyObjectByType<WeaponAssemblyManager>();
+            if (mgr != null)
+            {
+                if (transform.position.x < 1.6f)
                 {
-                    if (transform.position.x < 1.6f)
-                    {
-                        mgr.OnProceedToShootingRange();
-                    }
-                    else
-                    {
-                        mgr.OnReturnToWorkbench();
-                    }
+                    mgr.OnProceedToShootingRange();
+                }
+                else
+                {
+                    mgr.OnReturnToWorkbench();
                 }
             }
         }
@@ -132,6 +192,7 @@ namespace VRRangeAcademy.Assembly
 
         private void HandleCursorToggle()
         {
+#if ENABLE_INPUT_SYSTEM
             if (Keyboard.current != null)
             {
                 if (Keyboard.current.tabKey.wasPressedThisFrame || Keyboard.current.escapeKey.wasPressedThisFrame)
@@ -139,6 +200,12 @@ namespace VRRangeAcademy.Assembly
                     SetCursorLock(!isCursorLocked);
                 }
             }
+#else
+            if (Input.GetKeyDown(KeyCode.Tab) || Input.GetKeyDown(KeyCode.Escape))
+            {
+                SetCursorLock(!isCursorLocked);
+            }
+#endif
         }
 
         public void SetCursorLock(bool locked)
@@ -148,22 +215,54 @@ namespace VRRangeAcademy.Assembly
             Cursor.visible = !locked;
         }
 
-        private void HandleMouseLook()
+        private void HandleLook()
         {
+            // 1. Control con ratón en PC
+#if ENABLE_INPUT_SYSTEM
             bool shouldLook = isCursorLocked || (Mouse.current != null && Mouse.current.rightButton.isPressed);
-
             if (shouldLook && Mouse.current != null)
             {
                 Vector2 delta = Mouse.current.delta.ReadValue();
                 yaw += delta.x * mouseSensitivity * 0.1f;
                 pitch -= delta.y * mouseSensitivity * 0.1f;
                 pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
+            }
+#else
+            if (isCursorLocked || Input.GetMouseButton(1))
+            {
+                yaw += Input.GetAxis("Mouse X") * mouseSensitivity;
+                pitch -= Input.GetAxis("Mouse Y") * mouseSensitivity;
+                pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
+            }
+#endif
 
-                transform.rotation = Quaternion.Euler(0f, yaw, 0f);
-                if (playerCamera != null)
+            // 2. Giro por pasos (Snap Turn) con Thumbstick Derecho en Meta Quest 3
+            var rightDevice = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
+            if (rightDevice.isValid && rightDevice.TryGetFeatureValue(CommonUsages.primary2DAxis, out Vector2 rStick))
+            {
+                if (snapTurnCooldown > 0f)
                 {
-                    playerCamera.transform.localRotation = Quaternion.Euler(pitch, 0f, 0f);
+                    snapTurnCooldown -= Time.deltaTime;
                 }
+
+                if (Mathf.Abs(rStick.x) > 0.60f && snapTurnCooldown <= 0f)
+                {
+                    float angle = Mathf.Sign(rStick.x) * snapTurnAngle;
+                    yaw += angle;
+                    snapTurnCooldown = 0.28f;
+                }
+                else if (Mathf.Abs(rStick.x) < 0.2f)
+                {
+                    snapTurnCooldown = 0f;
+                }
+            }
+
+            transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+
+            // En PC se rota la cámara en pitch. En VR, OpenXR aplica el seguimiento de la cabeza automáticamente.
+            if (playerCamera != null && !XRSettings.isDeviceActive)
+            {
+                playerCamera.transform.localRotation = Quaternion.Euler(pitch, 0f, 0f);
             }
         }
 
@@ -172,6 +271,7 @@ namespace VRRangeAcademy.Assembly
             Vector2 inputDir = Vector2.zero;
             bool isSprinting = false;
 
+#if ENABLE_INPUT_SYSTEM
             if (Keyboard.current != null)
             {
                 if (Keyboard.current.wKey.isPressed) inputDir.y += 1f;
@@ -180,20 +280,46 @@ namespace VRRangeAcademy.Assembly
                 if (Keyboard.current.aKey.isPressed) inputDir.x -= 1f;
                 isSprinting = Keyboard.current.leftShiftKey.isPressed;
             }
+#else
+            inputDir.x = Input.GetAxisRaw("Horizontal");
+            inputDir.y = Input.GetAxisRaw("Vertical");
+            isSprinting = Input.GetKey(KeyCode.LeftShift);
+#endif
 
-            inputDir.Normalize();
+            // Lectura de Thumbstick Izquierdo en Meta Quest 3
+            var leftDevice = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
+            if (leftDevice.isValid)
+            {
+                if (leftDevice.TryGetFeatureValue(CommonUsages.primary2DAxis, out Vector2 lStick))
+                {
+                    if (lStick.sqrMagnitude > 0.04f)
+                    {
+                        inputDir.x += lStick.x;
+                        inputDir.y += lStick.y;
+                    }
+                }
+                if (leftDevice.TryGetFeatureValue(CommonUsages.primary2DAxisClick, out bool lClick) && lClick)
+                {
+                    isSprinting = true;
+                }
+            }
 
-            // Dirección relativa a la rotación del jugador
-            Vector3 move = transform.right * inputDir.x + transform.forward * inputDir.y;
+            if (inputDir.sqrMagnitude > 1f) inputDir.Normalize();
+
+            // Orientar movimiento según la dirección de mirada
+            Transform orienter = (XRSettings.isDeviceActive && playerCamera != null) ? playerCamera.transform : transform;
+            Vector3 forward = Vector3.ProjectOnPlane(orienter.forward, Vector3.up).normalized;
+            Vector3 right = Vector3.ProjectOnPlane(orienter.right, Vector3.up).normalized;
+            Vector3 move = forward * inputDir.y + right * inputDir.x;
+
             float currentSpeed = moveSpeed * (isSprinting ? sprintMultiplier : 1.0f);
-
             bool isGrounded = characterController.isGrounded;
 
             if (isGrounded)
             {
                 if (verticalVelocity < 0f)
                 {
-                    verticalVelocity = -2.0f; // Adherencia firme al suelo
+                    verticalVelocity = -2.0f; // Adherencia firme
                 }
 
                 if (IsJumpPressed())
@@ -221,24 +347,21 @@ namespace VRRangeAcademy.Assembly
 
         private bool IsJumpPressed()
         {
+#if ENABLE_INPUT_SYSTEM
             if (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame) return true;
             if (Gamepad.current != null && Gamepad.current.buttonSouth.wasPressedThisFrame) return true;
+#else
+            if (Input.GetKeyDown(KeyCode.Space)) return true;
+#endif
 
-            // Soporte para mandos VR (Meta Quest 3 - Botón A en mano derecha)
-            var rightDevices = new List<UnityEngine.XR.InputDevice>();
-            UnityEngine.XR.InputDevices.GetDevicesWithCharacteristics(
-                UnityEngine.XR.InputDeviceCharacteristics.Right | UnityEngine.XR.InputDeviceCharacteristics.Controller,
-                rightDevices
-            );
+            // Mandos VR Meta Quest 3 (Botón 'A' en mano derecha)
+            var rightDevice = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
             bool vrPressed = false;
-            for (int i = 0; i < rightDevices.Count; i++)
+            if (rightDevice.isValid && rightDevice.TryGetFeatureValue(CommonUsages.primaryButton, out bool primary) && primary)
             {
-                if (rightDevices[i].TryGetFeatureValue(UnityEngine.XR.CommonUsages.primaryButton, out bool primary) && primary)
-                {
-                    vrPressed = true;
-                    break;
-                }
+                vrPressed = true;
             }
+
             bool vrJump = vrPressed && !wasVrJumpPressed;
             wasVrJumpPressed = vrPressed;
             if (vrJump) return true;
@@ -248,46 +371,45 @@ namespace VRRangeAcademy.Assembly
 
         private void UpdateVrControllers()
         {
-            // 1. Seguimiento 6DoF de mandos Meta Quest 3 Touch Plus
-            var rightDevice = UnityEngine.XR.InputDevices.GetDeviceAtXRNode(UnityEngine.XR.XRNode.RightHand);
-            if (rightDevice.isValid && rightHandAnchor != null)
+            var rightDevice = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
+            var leftDevice = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
+
+            // 1. Seguimiento 6DoF de mandos Meta Quest 3 Touch Plus (si no tienen tracker independiente)
+            if (rightHandAnchor != null && (rightTracker == null || !rightTracker.IsTracked))
             {
-                if (rightDevice.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 rPos))
+                if (rightDevice.isValid)
                 {
-                    rightHandAnchor.localPosition = rPos;
-                }
-                if (rightDevice.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion rRot))
-                {
-                    rightHandAnchor.localRotation = rRot;
+                    if (rightDevice.TryGetFeatureValue(CommonUsages.devicePosition, out Vector3 rPos))
+                        rightHandAnchor.localPosition = rPos;
+                    if (rightDevice.TryGetFeatureValue(CommonUsages.deviceRotation, out Quaternion rRot))
+                        rightHandAnchor.localRotation = rRot;
                 }
             }
 
-            var leftDevice = UnityEngine.XR.InputDevices.GetDeviceAtXRNode(UnityEngine.XR.XRNode.LeftHand);
-            if (leftDevice.isValid && leftHandAnchor != null)
+            if (leftHandAnchor != null && (leftTracker == null || !leftTracker.IsTracked))
             {
-                if (leftDevice.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 lPos))
+                if (leftDevice.isValid)
                 {
-                    leftHandAnchor.localPosition = lPos;
-                }
-                if (leftDevice.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion lRot))
-                {
-                    leftHandAnchor.localRotation = lRot;
+                    if (leftDevice.TryGetFeatureValue(CommonUsages.devicePosition, out Vector3 lPos))
+                        leftHandAnchor.localPosition = lPos;
+                    if (leftDevice.TryGetFeatureValue(CommonUsages.deviceRotation, out Quaternion lRot))
+                        leftHandAnchor.localRotation = lRot;
                 }
             }
 
-            // 2. Detección de Agarre con Mandos Quest 3 (Grip o Trigger)
+            // 2. Detección de Agarre con Mandos Quest 3 (Grip lateral o Gatillo frontal)
             bool rightGrip = false;
             if (rightDevice.isValid)
             {
-                if (rightDevice.TryGetFeatureValue(UnityEngine.XR.CommonUsages.grip, out float rG)) rightGrip = rG > 0.45f;
-                if (!rightGrip && rightDevice.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float rT)) rightGrip = rT > 0.45f;
+                if (rightDevice.TryGetFeatureValue(CommonUsages.grip, out float rG)) rightGrip = rG > 0.45f;
+                if (!rightGrip && rightDevice.TryGetFeatureValue(CommonUsages.trigger, out float rT)) rightGrip = rT > 0.45f;
             }
 
             bool leftGrip = false;
             if (leftDevice.isValid)
             {
-                if (leftDevice.TryGetFeatureValue(UnityEngine.XR.CommonUsages.grip, out float lG)) leftGrip = lG > 0.45f;
-                if (!leftGrip && leftDevice.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float lT)) leftGrip = lT > 0.45f;
+                if (leftDevice.TryGetFeatureValue(CommonUsages.grip, out float lG)) leftGrip = lG > 0.45f;
+                if (!leftGrip && leftDevice.TryGetFeatureValue(CommonUsages.trigger, out float lT)) leftGrip = lT > 0.45f;
             }
 
             // Mano Derecha: Agarre / Desarme
@@ -299,7 +421,7 @@ namespace VRRangeAcademy.Assembly
                     heldPiece = piece;
                     activeGrabberTransform = rightHandAnchor;
                     heldPiece.Grab(rightHandAnchor);
-                    TriggerHaptic(UnityEngine.XR.XRNode.RightHand, 0.85f, 0.15f);
+                    TriggerHaptic(XRNode.RightHand, 0.85f, 0.15f);
                 }
             }
             else if (!rightGrip && wasVrRightGrip && heldPiece != null && activeGrabberTransform == rightHandAnchor)
@@ -318,7 +440,7 @@ namespace VRRangeAcademy.Assembly
                     heldPiece = piece;
                     activeGrabberTransform = leftHandAnchor;
                     heldPiece.Grab(leftHandAnchor);
-                    TriggerHaptic(UnityEngine.XR.XRNode.LeftHand, 0.85f, 0.15f);
+                    TriggerHaptic(XRNode.LeftHand, 0.85f, 0.15f);
                 }
             }
             else if (!leftGrip && wasVrLeftGrip && heldPiece != null && activeGrabberTransform == leftHandAnchor)
@@ -331,32 +453,31 @@ namespace VRRangeAcademy.Assembly
             wasVrRightGrip = rightGrip;
             wasVrLeftGrip = leftGrip;
 
-            // 3. Botón para alternar modo Armar / Desarmar en mandos VR (Botón X en mano izquierda o A en derecha)
+            // 3. Botón para alternar modo Armar / Desarmar en mandos VR (Botón 'X' en mano izquierda)
             bool vrToggleMode = false;
-            if (leftDevice.isValid && leftDevice.TryGetFeatureValue(UnityEngine.XR.CommonUsages.primaryButton, out bool xBtn) && xBtn)
-            {
-                vrToggleMode = true;
-            }
-            if (rightDevice.isValid && rightDevice.TryGetFeatureValue(UnityEngine.XR.CommonUsages.primaryButton, out bool aBtn) && aBtn)
+            if (leftDevice.isValid && leftDevice.TryGetFeatureValue(CommonUsages.primaryButton, out bool xBtn) && xBtn)
             {
                 vrToggleMode = true;
             }
             if (vrToggleMode && !wasVrToggleModePressed)
             {
-                if (WeaponAssemblyManager.Instance != null)
-                {
-                    WeaponAssemblyManager.Instance.ToggleWorkbenchMode();
-                }
+                WeaponAssemblyManager.Instance?.ToggleWorkbenchMode();
             }
             wasVrToggleModePressed = vrToggleMode;
+
+            // 4. Botón 'B' en mano derecha para soltar pieza de forma forzada si estuviera atorada
+            if (rightDevice.isValid && rightDevice.TryGetFeatureValue(CommonUsages.secondaryButton, out bool bBtn) && bBtn && heldPiece != null)
+            {
+                DropHeldPiece();
+            }
         }
 
         private AssemblyPiece FindNearbyOrRaycastPiece(Transform hand)
         {
             if (hand == null) return hoveredPiece;
 
-            // Proximidad física directa (24cm alrededor del mando Touch Plus)
-            Collider[] hits = Physics.OverlapSphere(hand.position, 0.24f, interactableLayer);
+            // Proximidad física directa (28cm alrededor del mando Touch Plus)
+            Collider[] hits = Physics.OverlapSphere(hand.position, 0.28f, interactableLayer);
             AssemblyPiece bestNear = null;
             float bestDist = float.MaxValue;
             for (int i = 0; i < hits.Length; i++)
@@ -385,9 +506,9 @@ namespace VRRangeAcademy.Assembly
             return hoveredPiece;
         }
 
-        public static void TriggerHaptic(UnityEngine.XR.XRNode node, float amplitude = 0.6f, float duration = 0.1f)
+        public static void TriggerHaptic(XRNode node, float amplitude = 0.6f, float duration = 0.1f)
         {
-            var device = UnityEngine.XR.InputDevices.GetDeviceAtXRNode(node);
+            var device = InputDevices.GetDeviceAtXRNode(node);
             if (device.isValid)
             {
                 device.SendHapticImpulse(0, amplitude, duration);
@@ -415,21 +536,25 @@ namespace VRRangeAcademy.Assembly
 
             // Tecla de acción en Desktop: Clic Izquierdo o tecla E
             bool actionPressed = false;
+#if ENABLE_INPUT_SYSTEM
             if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame) actionPressed = true;
             if (Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame) actionPressed = true;
+#else
+            if (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.E)) actionPressed = true;
+#endif
 
             if (actionPressed)
             {
                 if (heldPiece == null)
                 {
-                    // 1. Agarrar la pieza a la que apuntamos (si está ensamblada, se desarma automáticamente)
+                    // 1. Agarrar la pieza a la que apuntamos
                     if (hoveredPiece != null)
                     {
                         heldPiece = hoveredPiece;
                         activeGrabberTransform = rightHandAnchor != null ? rightHandAnchor : playerCamera.transform;
                         dragPlane = new Plane(-playerCamera.transform.forward, heldPiece.transform.position);
                         heldPiece.Grab(activeGrabberTransform);
-                        TriggerHaptic(UnityEngine.XR.XRNode.RightHand, 0.8f, 0.15f);
+                        TriggerHaptic(XRNode.RightHand, 0.8f, 0.15f);
                     }
                     // 2. Si no hay pieza, interactuar con botones de interfaz en espacio 3D
                     else if (Physics.Raycast(ray, out RaycastHit uiHit, maxInteractDistance, ~0))
@@ -443,19 +568,11 @@ namespace VRRangeAcademy.Assembly
                 }
                 else
                 {
-                    // Soltar pieza actual si se presiona de nuevo
+                    // Soltar pieza actual
                     heldPiece.Release();
                     heldPiece = null;
                     activeGrabberTransform = null;
                 }
-            }
-
-            // Soltar si soltamos el clic mientras arrastramos en modo cursor libre
-            if (!isCursorLocked && Mouse.current != null && Mouse.current.leftButton.wasReleasedThisFrame && heldPiece != null && activeGrabberTransform == playerCamera.transform)
-            {
-                heldPiece.Release();
-                heldPiece = null;
-                activeGrabberTransform = null;
             }
         }
 
@@ -502,7 +619,12 @@ namespace VRRangeAcademy.Assembly
             }
             else
             {
-                Ray ray = playerCamera.ScreenPointToRay(Mouse.current != null ? Mouse.current.position.ReadValue() : Vector2.zero);
+#if ENABLE_INPUT_SYSTEM
+                Vector2 mousePos = Mouse.current != null ? Mouse.current.position.ReadValue() : Vector2.zero;
+#else
+                Vector2 mousePos = Input.mousePosition;
+#endif
+                Ray ray = playerCamera.ScreenPointToRay(mousePos);
                 if (dragPlane.Raycast(ray, out float enter))
                 {
                     targetHoldPos = ray.GetPoint(enter);
@@ -519,13 +641,11 @@ namespace VRRangeAcademy.Assembly
 
         private void OnGUI()
         {
-            if (!showDesktopHUD) return;
+            if (!showDesktopHUD || XRSettings.isDeviceActive) return;
 
-            // 1. Indicador interactivo solo para piezas sueltas en la mesa de ensamblaje (sin puntero de tiro en pantalla)
             var equippedGun = GetComponentInChildren<VRRangeAcademy.Shooting.WeaponShootingController>()
                            ?? (Camera.main != null ? Camera.main.GetComponentInChildren<VRRangeAcademy.Shooting.WeaponShootingController>() : null);
 
-            // Si hay un arma equipada, se eliminan todas las retículas de pantalla para apuntar con las miras mecánicas del arma
             if (equippedGun == null && isCursorLocked && (hoveredPiece != null || heldPiece != null))
             {
                 float centerX = Screen.width * 0.5f;
@@ -537,15 +657,14 @@ namespace VRRangeAcademy.Assembly
                 GUI.color = Color.white;
             }
 
-            // 2. Tooltip contextual de acción
             if (heldPiece != null)
             {
                 GUI.skin.label.fontSize = 18;
                 GUI.skin.label.fontStyle = FontStyle.Bold;
                 GUI.color = new Color(0.2f, 1f, 0.8f);
                 string holdHint = WeaponAssemblyManager.Instance != null && WeaponAssemblyManager.Instance.currentMode == WorkbenchMode.Disassembly
-                    ? $"Desmontando: {heldPiece.displayName} -> ¡Colócala en la alfombrilla de armero!"
-                    : $"Sosteniendo: {heldPiece.displayName} -> ¡Llévala al holograma para encastrarla!";
+                    ? $"Desmontando: {heldPiece.displayName} -> Colócala en la alfombrilla de armero"
+                    : $"Sosteniendo: {heldPiece.displayName} -> Llévala al holograma para encastrarla";
                 GUI.Label(new Rect(Screen.width * 0.5f - 300f, Screen.height * 0.5f + 40f, 600f, 35f),
                     holdHint, new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter });
                 GUI.color = Color.white;
@@ -556,17 +675,16 @@ namespace VRRangeAcademy.Assembly
                 GUI.skin.label.fontStyle = FontStyle.Bold;
                 GUI.color = new Color(1f, 0.9f, 0.3f);
                 string hoverHint = hoveredPiece.IsSnapped
-                    ? $"[Quest 3 Grip / Clic] Desarmar {hoveredPiece.displayName}"
-                    : $"[Quest 3 Grip / Clic] Agarrar {hoveredPiece.displayName}";
+                    ? $"[Grip / Clic] Desarmar {hoveredPiece.displayName}"
+                    : $"[Grip / Clic] Agarrar {hoveredPiece.displayName}";
                 GUI.Label(new Rect(Screen.width * 0.5f - 300f, Screen.height * 0.5f + 40f, 600f, 35f),
                     hoverHint, new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter });
                 GUI.color = Color.white;
             }
 
-            // 3. Barra de ayuda inferior para VR Meta Quest 3 y Teclado/Ratón
             GUI.skin.box.fontSize = 13;
             string modeName = WeaponAssemblyManager.Instance != null && WeaponAssemblyManager.Instance.currentMode == WorkbenchMode.Disassembly ? "DESARME" : "ARMAR";
-            string controlsText = $"[MODO {modeName}] | [Quest 3: Grip / Trigger] Desarmar / Agarrar | [X] Modo Armar/Desarmar | [Clic Der] Encarar Mira | [B] Modo Tiro | [T] Polígono | [Tab] Cursor";
+            string controlsText = $"[MODO {modeName}] | [Quest 3: Grip / Trigger] Desarmar / Agarrar | [X] Modo Armar/Desarmar | [Y] Polígono | [Joystick Der] Giro";
             GUI.Box(new Rect(Screen.width * 0.5f - 620f, Screen.height - 40f, 1240f, 30f), controlsText);
         }
     }

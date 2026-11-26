@@ -29,8 +29,8 @@ namespace VRRangeAcademy.UI
 
         [Header("Scene Transition Settings")]
         [SerializeField] private string trainingSceneName = "WeaponAssembly";
-        [SerializeField] private string freeRangeSceneName = "ShootingRange";
-        [SerializeField] private bool isFreeRangeUnlocked = false;
+        [SerializeField] private string freeRangeSceneName = "WeaponAssembly";
+        [SerializeField] private bool isFreeRangeUnlocked = true;
 
         [Header("Audio")]
         [SerializeField] private AudioSource audioSource;
@@ -84,16 +84,10 @@ namespace VRRangeAcademy.UI
 
         public void OnFreeRangeClicked()
         {
-            if (!isFreeRangeUnlocked)
-            {
-                PlaySound(lockedSound, 250f);
-                ShowToast("🔒 Modo bloqueado: Debes completar la capacitación primero.", 3.0f);
-                return;
-            }
-
+            PlayerPrefs.SetInt("DirectToRange", 1);
             PlaySound(clickSound, 800f);
-            ShowToast("Accediendo al Campo de Tiro Libre...", 2.5f);
-            StartCoroutine(LoadSceneDelayed(freeRangeSceneName, 1.2f));
+            ShowToast("Accediendo al Polígono de Tiro...", 2.0f);
+            StartCoroutine(LoadSceneDelayed(freeRangeSceneName, 0.8f));
         }
 
         public void OnCalibrationClicked()

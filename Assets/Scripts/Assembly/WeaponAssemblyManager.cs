@@ -116,6 +116,18 @@ namespace VRRangeAcademy.Assembly
         {
             HookUI();
             LoadWeapon(currentWeaponIndex);
+
+            if (PlayerPrefs.GetInt("DirectToRange", 0) == 1)
+            {
+                PlayerPrefs.SetInt("DirectToRange", 0);
+                StartCoroutine(DelayedProceedToRange());
+            }
+        }
+
+        private IEnumerator DelayedProceedToRange()
+        {
+            yield return null;
+            OnProceedToShootingRange();
         }
 
         private void Update()

@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using CommonUsages = UnityEngine.XR.CommonUsages;
 
 namespace VRRangeAcademy.Shooting
 {
@@ -68,6 +69,7 @@ namespace VRRangeAcademy.Shooting
         // VR Input Tracking
         private bool wasVrTriggerHeld = false;
         private bool wasVrSecondaryHeld = false;
+        private bool wasVrPrimaryHeld = false;
 
         private void Awake()
         {
@@ -346,10 +348,11 @@ namespace VRRangeAcademy.Shooting
             if (Gamepad.current != null && Gamepad.current.leftTrigger.ReadValue() > 0.4f) isAiming = true;
             if (IsVrGripHeld()) isAiming = true;
 
-            // 4. Recarga con [R] o botón de recarga
+            // 4. Recarga con [R] en PC o Botón 'A' / 'X' en mandos VR
             bool reloadPressed = false;
             if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame) reloadPressed = true;
             if (Gamepad.current != null && Gamepad.current.buttonNorth.wasPressedThisFrame) reloadPressed = true;
+            if (IsVrPrimaryButtonPressed()) reloadPressed = true;
 
             float currentRate = fireMode == WeaponFireMode.FullAuto ? autoFireRate : semiFireRate;
             if (isFiring && Time.time >= lastFireTime + currentRate && !isReloading)
@@ -408,6 +411,27 @@ namespace VRRangeAcademy.Shooting
             return pressed;
         }
 
+        private bool IsVrPrimaryButtonPressed()
+        {
+            var rightDevices = new List<UnityEngine.XR.InputDevice>();
+            UnityEngine.XR.InputDevices.GetDevicesWithCharacteristics(
+                UnityEngine.XR.InputDeviceCharacteristics.Right | UnityEngine.XR.InputDeviceCharacteristics.Controller,
+                rightDevices
+            );
+            bool held = false;
+            for (int i = 0; i < rightDevices.Count; i++)
+            {
+                if (rightDevices[i].TryGetFeatureValue(UnityEngine.XR.CommonUsages.primaryButton, out bool aVal) && aVal)
+                {
+                    held = true;
+                    break;
+                }
+            }
+            bool pressed = held && !wasVrPrimaryHeld;
+            wasVrPrimaryHeld = held;
+            return pressed;
+        }
+
         private bool IsVrGripHeld()
         {
             var rightDevices = new List<UnityEngine.XR.InputDevice>();
@@ -421,6 +445,18 @@ namespace VRRangeAcademy.Shooting
                     return true;
             }
             return false;
+        }
+        private void TriggerShotHaptic(float amplitude, float duration)
+        {
+            var rightDevices = new List<UnityEngine.XR.InputDevice>();
+            UnityEngine.XR.InputDevices.GetDevicesWithCharacteristics(
+                UnityEngine.XR.InputDeviceCharacteristics.Right | UnityEngine.XR.InputDeviceCharacteristics.Controller,
+                rightDevices
+            );
+            for (int i = 0; i < rightDevices.Count; i++)
+            {
+                rightDevices[i].SendHapticImpulse(0, amplitude, duration);
+            }
         }
         #endregion
 
@@ -450,8 +486,9 @@ namespace VRRangeAcademy.Shooting
             // 2. Destello de boca de cañón (Muzzle Flash)
             StartCoroutine(FlashMuzzleLight());
 
-            // 3. Retroceso balístico
+            // 3. Retroceso balístico y vibración háptica en mandos Meta Quest 3
             targetRecoilEuler += new Vector3(-recoilKickAngle, Random.Range(-0.35f, 0.35f), 0f);
+            TriggerShotHaptic(0.85f, 0.12f);
 
             // 4. Registrar disparo en el polígono
             if (ShootingRangeManager.Instance != null)
