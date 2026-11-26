@@ -51,6 +51,14 @@ namespace VRRangeAcademy.Anatomy
             }
         }
 
+        private void Start()
+        {
+            if (weaponParts.Count > 0)
+            {
+                SelectPart(currentPartIndex);
+            }
+        }
+
         public void RegisterPart(WeaponPartIdentifier part)
         {
             if (!weaponParts.Contains(part))
@@ -106,8 +114,8 @@ namespace VRRangeAcademy.Anatomy
         {
             if (txtPartName != null) txtPartName.text = part.PartName;
             if (txtTechnicalName != null) txtTechnicalName.text = "EN: " + part.TechnicalNameEn;
-            if (txtFunction != null) txtFunction.text = "⚙️ <b>Función:</b>\n" + part.MechanicalFunction;
-            if (txtSafetyRule != null) txtSafetyRule.text = "🛡️ <b>Norma de Seguridad:</b>\n" + part.SafetyProtocol;
+            if (txtFunction != null) txtFunction.text = "<b>Función Mecánica:</b>\n" + part.MechanicalFunction;
+            if (txtSafetyRule != null) txtSafetyRule.text = "<b>Norma de Seguridad:</b>\n" + part.SafetyProtocol;
             if (txtCounter != null) txtCounter.text = string.Format("Pieza {0} / {1}", currentPartIndex + 1, weaponParts.Count);
         }
 

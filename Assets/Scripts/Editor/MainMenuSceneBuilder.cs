@@ -1,9 +1,11 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using TMPro;
 using VRRangeAcademy.UI;
+using VRRangeAcademy.Anatomy;
 
 namespace VRRangeAcademy.Editor
 {
@@ -15,7 +17,7 @@ namespace VRRangeAcademy.Editor
             var activeScene = UnityEditor.SceneManagement.EditorSceneManager.GetActiveScene();
             foreach (var rootGo in activeScene.GetRootGameObjects())
             {
-                if (rootGo.name.StartsWith("---") || rootGo.name == "EventSystem" || rootGo.name == "XR_Origin_Rig")
+                if (rootGo.name.StartsWith("---") || rootGo.name == "EventSystem" || rootGo.name == "XR_Origin_Rig" || rootGo.name == "Anatomy_Inspection_Station")
                 {
                     Object.DestroyImmediate(rootGo);
                 }
@@ -229,9 +231,6 @@ namespace VRRangeAcademy.Editor
             // 7. Player / XR Setup
             Camera mainCam = SetupPlayerRig(playerRoot, existingCam);
 
-            // 6. UI CANVAS (World Space VR Diegetic Interface)
-            BuildVRMenuCanvas(uiRoot, mainCam);
-
             // 8. EventSystem (New Input System UI Module)
             EventSystem es = Object.FindAnyObjectByType<EventSystem>();
             if (es == null)
@@ -247,7 +246,10 @@ namespace VRRangeAcademy.Editor
             }
 
             // 9. Decorative Props & Ornamental Weapons
-            DecorateWorkshopEnvironment();
+            GameObject workbenchM1911 = DecorateWorkshopEnvironment();
+
+            // 6. UI CANVAS (World Space VR Diegetic Interface)
+            BuildVRMenuCanvas(uiRoot, mainCam, workbenchM1911);
 
             // Save Scene
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(
@@ -257,7 +259,7 @@ namespace VRRangeAcademy.Editor
             Debug.Log("<color=#2EA3FF><b>[VR Range Academy]</b> Escena MainMenu construida y guardada exitosamente!</color>");
         }
 
-        private static void BuildVRMenuCanvas(GameObject parent, Camera cam)
+        private static void BuildVRMenuCanvas(GameObject parent, Camera cam, GameObject workbenchM1911)
         {
             GameObject canvasObj = new GameObject("VR_MainMenu_Canvas");
             canvasObj.transform.parent = parent.transform;
@@ -388,6 +390,9 @@ namespace VRRangeAcademy.Editor
 
             // Build Left-Hand Controller Guide Diagram (As seen on left side of the reference image!)
             BuildControllerGuideDiagram(parent, cam);
+
+            // Build Right-Hand Anatomy & Nomenclature Station (Symmetrical to Guide Diagram)
+            BuildAnatomyInspectionStation(parent, cam, workbenchM1911);
         }
 
         private static void BuildControllerGuideDiagram(GameObject parent, Camera cam)
@@ -429,6 +434,181 @@ namespace VRRangeAcademy.Editor
             CreateUIText("GuideBody", panel.transform,
                 new Vector2(0.5f, 0.5f), new Vector2(0, -20f), new Vector2(430f, 380f),
                 controlsGuideText, 16, FontStyles.Normal, TextAlignmentOptions.TopLeft, Color.white);
+        }
+
+        private static void BuildAnatomyInspectionStation(GameObject parent, Camera cam, GameObject m1911Workbench)
+        {
+            GameObject stationObj = new GameObject("Anatomy_Inspection_Station");
+            stationObj.transform.parent = parent.transform;
+            stationObj.transform.position = new Vector3(1.35f, 1.38f, 1.98f);
+            stationObj.transform.rotation = Quaternion.Euler(6.43f, 34.29f, 0f);
+            stationObj.transform.localScale = Vector3.one * 0.0016f;
+
+            Canvas canvas = stationObj.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            canvas.worldCamera = cam;
+            stationObj.AddComponent<CanvasScaler>();
+            stationObj.AddComponent<GraphicRaycaster>();
+
+            RectTransform rect = stationObj.GetComponent<RectTransform>();
+            rect.sizeDelta = new Vector2(480f, 520f);
+
+            WeaponAnatomyManager anatomyManager = stationObj.AddComponent<WeaponAnatomyManager>();
+
+            // Panel Fondo
+            GameObject cardBg = CreateUIPanel("CardBackground", stationObj.transform,
+                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(480f, 520f),
+                new Color(0.08f, 0.16f, 0.25f, 0.90f));
+
+            // Barra de acento superior cian
+            CreateUIPanel("TopAccentBar", cardBg.transform,
+                new Vector2(0.5f, 1.0f), new Vector2(0, -8f), new Vector2(460f, 4f),
+                new Color(0.18f, 0.64f, 1.0f, 1.0f));
+
+            // Encabezado
+            CreateUIText("CardHeader", cardBg.transform,
+                new Vector2(0.5f, 1.0f), new Vector2(0, -34f), new Vector2(460f, 46f),
+                "NOMENCLATURA Y PARTES DEL ARMA\n<size=13><color=#7FC3FF>Inspección Técnica y Seguridad</color></size>",
+                18, FontStyles.Bold, TextAlignmentOptions.Center, new Color(0.3f, 0.85f, 1.0f));
+
+            // Nombre de la Pieza
+            GameObject txtPartNameObj = CreateUIText("TxtPartName", cardBg.transform,
+                new Vector2(0.5f, 1.0f), new Vector2(0, -78f), new Vector2(450f, 36f),
+                "Armazón y Empuñadura", 18, FontStyles.Bold,
+                TextAlignmentOptions.Center, new Color(1.0f, 0.85f, 0.35f, 1.0f));
+
+            // Nombre Técnico en Inglés
+            GameObject txtTechObj = CreateUIText("TxtTechnicalName", cardBg.transform,
+                new Vector2(0.5f, 1.0f), new Vector2(0, -106f), new Vector2(450f, 22f),
+                "EN: Frame / Receiver", 13, FontStyles.Normal,
+                TextAlignmentOptions.Center, new Color(0.65f, 0.85f, 1.0f));
+
+            // Caja Función Mecánica
+            GameObject funcBox = CreateUIPanel("FunctionBox", cardBg.transform,
+                new Vector2(0.5f, 1.0f), new Vector2(0, -178f), new Vector2(450f, 110f),
+                new Color(0.05f, 0.11f, 0.18f, 0.85f));
+
+            GameObject txtFuncObj = CreateUIText("TxtFunction", funcBox.transform,
+                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(430f, 100f),
+                "<b>Función Mecánica:</b>\nEstructura principal de la pistola donde se alojan los rieles guía de la corredera, el brocal del cargador y los mecanismos de disparo.",
+                14, FontStyles.Normal, TextAlignmentOptions.TopLeft, new Color(0.9f, 0.95f, 1.0f));
+
+            // Caja Norma de Seguridad
+            GameObject safetyBox = CreateUIPanel("SafetyBox", cardBg.transform,
+                new Vector2(0.5f, 1.0f), new Vector2(0, -305f), new Vector2(450f, 125f),
+                new Color(0.18f, 0.10f, 0.08f, 0.85f));
+
+            GameObject txtSafetyObj = CreateUIText("TxtSafetyRule", safetyBox.transform,
+                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(430f, 115f),
+                "<color=#FFA726><b>Norma de Seguridad:</b></color>\nAsegure un empuñe firme y alto con ambas manos (High-Grip) para un control estable del retroceso sin cruzar los pulgares detrás de la corredera.",
+                13.5f, FontStyles.Normal, TextAlignmentOptions.TopLeft, Color.white);
+
+            // Barra de Navegación Inferior
+            GameObject navBar = CreateUIPanel("NavBar", cardBg.transform,
+                new Vector2(0.5f, 0f), new Vector2(0, 40f), new Vector2(450f, 52f),
+                new Color(0.04f, 0.08f, 0.14f, 0.90f));
+
+            // Botón Anterior
+            GameObject btnPrevObj = CreateUIButton("BtnPrev", navBar.transform,
+                new Vector2(0f, 0.5f), new Vector2(75f, 0f), new Vector2(130f, 42f),
+                "< ANTERIOR", 14,
+                new Color(0.12f, 0.28f, 0.44f, 0.95f), Color.white);
+
+            // Contador de Piezas
+            GameObject txtCounterObj = CreateUIText("TxtCounter", navBar.transform,
+                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(160f, 40f),
+                "Pieza 1 / 5", 15, FontStyles.Bold,
+                TextAlignmentOptions.Center, new Color(0.6f, 0.82f, 1.0f));
+
+            // Botón Siguiente
+            GameObject btnNextObj = CreateUIButton("BtnNext", navBar.transform,
+                new Vector2(1f, 0.5f), new Vector2(-75f, 0f), new Vector2(130f, 42f),
+                "SIGUIENTE >", 14,
+                new Color(0.12f, 0.28f, 0.44f, 0.95f), Color.white);
+
+            // Si m1911Workbench no vino como parámetro, buscarlo en la escena
+            if (m1911Workbench == null)
+            {
+                m1911Workbench = GameObject.Find("Workbench_M1911") ?? GameObject.Find("M1911");
+            }
+
+            // Configurar piezas anatómicas en el M1911 de la mesa
+            var partIdentifiers = SetupM1911AnatomyParts(m1911Workbench);
+
+            // Serializar propiedades en WeaponAnatomyManager
+            SerializedObject so = new SerializedObject(anatomyManager);
+            so.FindProperty("anatomyDisplayCard").objectReferenceValue = cardBg;
+            so.FindProperty("txtPartName").objectReferenceValue = txtPartNameObj.GetComponent<TextMeshProUGUI>();
+            so.FindProperty("txtTechnicalName").objectReferenceValue = txtTechObj.GetComponent<TextMeshProUGUI>();
+            so.FindProperty("txtFunction").objectReferenceValue = txtFuncObj.GetComponent<TextMeshProUGUI>();
+            so.FindProperty("txtSafetyRule").objectReferenceValue = txtSafetyObj.GetComponent<TextMeshProUGUI>();
+            so.FindProperty("txtCounter").objectReferenceValue = txtCounterObj.GetComponent<TextMeshProUGUI>();
+            so.FindProperty("btnNextPart").objectReferenceValue = btnNextObj.GetComponent<Button>();
+            so.FindProperty("btnPrevPart").objectReferenceValue = btnPrevObj.GetComponent<Button>();
+
+            var partsProp = so.FindProperty("weaponParts");
+            partsProp.ClearArray();
+            for (int i = 0; i < partIdentifiers.Count; i++)
+            {
+                partsProp.InsertArrayElementAtIndex(i);
+                partsProp.GetArrayElementAtIndex(i).objectReferenceValue = partIdentifiers[i];
+            }
+            so.ApplyModifiedProperties();
+        }
+
+        private static List<WeaponPartIdentifier> SetupM1911AnatomyParts(GameObject m1911)
+        {
+            var parts = new List<WeaponPartIdentifier>();
+            if (m1911 == null) return parts;
+
+            System.Action<string, string, string, string, string> addPart = (path, name, en, func, safety) => {
+                Transform t = m1911.transform.Find(path);
+                if (t != null)
+                {
+                    var id = t.GetComponent<WeaponPartIdentifier>();
+                    if (id == null) id = t.gameObject.AddComponent<WeaponPartIdentifier>();
+                    id.Configure(name, en, func, safety);
+                    EditorUtility.SetDirty(id);
+                    parts.Add(id);
+                }
+            };
+
+            // 1. Armazón / Frame
+            addPart("M1911",
+                "Armazón y Empuñadura (Receiver / Frame)",
+                "Frame / Receiver",
+                "Estructura principal de la pistola donde se alojan los rieles guía de la corredera, el brocal del cargador y los mecanismos de disparo.",
+                "Asegure un empuñe firme y alto con ambas manos (High-Grip) para un control estable del retroceso sin cruzar los pulgares detrás de la corredera.");
+
+            // 2. Corredera / Slide
+            addPart("M1911/Slide",
+                "Corredera (Slide)",
+                "Slide Assembly",
+                "Aloja el cañón, la aguja percutora y el extractor. Retrocede por la fuerza de los gases expulsando la vaina servida y avanza cargando un nuevo cartucho en la recámara.",
+                "Tirar hacia atrás y bloquear con la palanca de retención permite verificar visual y físicamente que la recámara esté 100% vacía antes de cualquier manipulación.");
+
+            // 3. Cargador / Magazine
+            addPart("M1911/Magazin",
+                "Cargador (Magazine)",
+                "Detachable Magazine",
+                "Dispositivo desmontable que almacena los cartuchos y los eleva mediante un resorte interno para alimentar la recámara.",
+                "En cualquier maniobra de seguridad o despeje, el PRIMER paso absoluto e inviolable es presionar el retén y extraer el cargador.");
+
+            // 4. Cola del Disparador / Trigger
+            addPart("M1911/Trigger",
+                "Cola del Disparador (Trigger)",
+                "Trigger",
+                "Transmite la presión mecánica del dedo índice para liberar el fiador y percutir el cartucho.",
+                "REGLA DE ORO: Mantenga siempre el dedo índice estirado fuera del guardamonte y a lo largo del armazón hasta que las miras apunten al blanco.");
+
+            // 5. Martillo Percutor / Hammer
+            addPart("M1911/Hammer",
+                "Martillo Percutor (Hammer)",
+                "Hammer",
+                "Componente pivotante que, impulsado por el muelle real, golpea la aguja percutora contra el iniciador/fulminante del cartucho.",
+                "Nunca intente desamartillar manualmente un arma cargada sin mantener la boca del cañón apuntando en una dirección 100% segura.");
+
+            return parts;
         }
 
         private static Camera SetupPlayerRig(GameObject parent, GameObject existingCamera)
@@ -521,15 +701,15 @@ namespace VRRangeAcademy.Editor
             Object.DestroyImmediate(ring.GetComponent<Collider>());
         }
 
-        private static void DecorateWorkshopEnvironment()
+        private static GameObject DecorateWorkshopEnvironment()
         {
             var existingDecor = GameObject.Find("--- DECORATIVE PROPS & WEAPONS (NON-INTERACTIVE) ---");
             if (existingDecor != null) Object.DestroyImmediate(existingDecor);
 
             GameObject decorRoot = new GameObject("--- DECORATIVE PROPS & WEAPONS (NON-INTERACTIVE) ---");
 
-            System.Action<GameObject, Vector3, Quaternion, Vector3, bool> spawnProp = (prefab, pos, rot, scale, isWeapon) => {
-                if (prefab == null) return;
+            System.Func<GameObject, Vector3, Quaternion, Vector3, bool, GameObject> spawnProp = (prefab, pos, rot, scale, isWeapon) => {
+                if (prefab == null) return null;
                 GameObject inst = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
                 inst.transform.parent = decorRoot.transform;
                 inst.transform.position = pos;
@@ -573,6 +753,7 @@ namespace VRRangeAcademy.Editor
                         }
                     }
                 }
+                return inst;
             };
 
             // Prefabs
@@ -603,7 +784,8 @@ namespace VRRangeAcademy.Editor
             var m2 = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Low Poly Weapons VOL.1/Prefabs/M2_50cal.prefab");
 
             // Mesa frontal (Workbench)
-            spawnProp(m1911, new Vector3(-0.18f, 0.91f, 1.35f), Quaternion.Euler(-90f, 35f, 0f), Vector3.one, true);
+            GameObject workbenchM1911 = spawnProp(m1911, new Vector3(-0.18f, 0.91f, 1.35f), Quaternion.Euler(-90f, 35f, 0f), Vector3.one, true);
+            if (workbenchM1911 != null) workbenchM1911.name = "Workbench_M1911";
             spawnProp(elcan, new Vector3(0.18f, 0.91f, 1.45f), Quaternion.Euler(0, 45f, 0), Vector3.one * 0.9f, true);
             spawnProp(flash, new Vector3(0.24f, 0.91f, 1.32f), Quaternion.Euler(0, -60f, 0), Vector3.one * 0.9f, true);
             spawnProp(shell, new Vector3(-0.02f, 0.905f, 1.48f), Quaternion.Euler(0, 15f, 90f), Vector3.one * 0.8f, false);
@@ -691,6 +873,8 @@ namespace VRRangeAcademy.Editor
             spawnProp(rgd5, new Vector3(4.75f, 1.60f, 0.6f), Quaternion.identity, Vector3.one * 1.2f, true);
             spawnProp(smoke, new Vector3(4.75f, 1.60f, 0.1f), Quaternion.identity, Vector3.one * 1.2f, true);
             spawnProp(smoke, new Vector3(4.75f, 1.60f, -0.2f), Quaternion.identity, Vector3.one * 1.2f, true);
+
+            return workbenchM1911;
         }
 
         #region Helper Creators

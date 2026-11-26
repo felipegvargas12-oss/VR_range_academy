@@ -31,10 +31,27 @@ namespace VRRangeAcademy.Anatomy
         public string MechanicalFunction => mechanicalFunction;
         public string SafetyProtocol => safetyProtocol;
 
+        public void Configure(string name, string technicalEn, string function, string safety, Color? customHighlight = null)
+        {
+            partName = name;
+            technicalNameEn = technicalEn;
+            mechanicalFunction = function;
+            safetyProtocol = safety;
+            if (customHighlight.HasValue) highlightColor = customHighlight.Value;
+        }
+
         private void Awake()
         {
-            partRenderer = GetComponent<Renderer>();
-            if (partRenderer != null && partRenderer.sharedMaterial != null)
+            InitializeRenderer();
+        }
+
+        private void InitializeRenderer()
+        {
+            if (partRenderer == null)
+            {
+                partRenderer = GetComponent<Renderer>();
+            }
+            if (partRenderer != null && originalMaterial == null && partRenderer.sharedMaterial != null)
             {
                 originalMaterial = partRenderer.material;
                 if (originalMaterial.HasProperty("_BaseColor"))
@@ -51,6 +68,7 @@ namespace VRRangeAcademy.Anatomy
         public void SetHighlight(bool highlight)
         {
             isHighlighted = highlight;
+            InitializeRenderer();
             if (partRenderer == null || originalMaterial == null) return;
 
             Color targetColor = highlight ? highlightColor : originalColor;
