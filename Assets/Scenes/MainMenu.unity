@@ -5635,7 +5635,7 @@ MonoBehaviour:
   profileNameText: {fileID: 683277461}
   defaultUserName: Cadete 01
   trainingSceneName: WeaponAssembly
-  freeRangeSceneName: ShootingRange
+  freeRangeSceneName: WeaponAssembly
   isFreeRangeUnlocked: 1
   audioSource: {fileID: 0}
   clickSound: {fileID: 0}

@@ -674,28 +674,68 @@ namespace VRRangeAcademy.Editor
             warningStripe.GetComponent<MeshRenderer>().sharedMaterial = matWarning;
 
             // 5. Pared Divisoria entre Taller y Galería (a X=1.6m)
+            // 5.1. Muro trasero sólido (desde Z=-5.5m hasta Z=-0.5m)
             var divBack = GameObject.CreatePrimitive(PrimitiveType.Cube);
             divBack.name = "Divider_Rear_Wall";
             divBack.transform.SetParent(rangeRoot.transform, false);
             divBack.transform.position = new Vector3(1.6f, 2.25f, -3.0f);
-            divBack.transform.localScale = new Vector3(0.18f, 4.5f, 5.0f);
+            divBack.transform.localScale = new Vector3(0.20f, 4.5f, 5.0f);
             divBack.GetComponent<MeshRenderer>().sharedMaterial = matWall;
 
+            // 5.2. Muro inferior de la ventana de observación (Z=1.5m a 5.5m, Y=0m a 1.0m)
             var divLower = GameObject.CreatePrimitive(PrimitiveType.Cube);
             divLower.name = "Divider_Window_Base";
             divLower.transform.SetParent(rangeRoot.transform, false);
             divLower.transform.position = new Vector3(1.6f, 0.5f, 3.5f);
-            divLower.transform.localScale = new Vector3(0.18f, 1.0f, 4.0f);
-            divLower.GetComponent<MeshRenderer>().sharedMaterial = matSteel;
+            divLower.transform.localScale = new Vector3(0.20f, 1.0f, 4.0f);
+            divLower.GetComponent<MeshRenderer>().sharedMaterial = matWall;
 
+            // 5.3. Muro superior sobre la ventana (Z=1.5m a 5.5m, Y=3.6m a 4.5m) -> Sella 100% hasta el techo sin huecos
+            var winHeader = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            winHeader.name = "Window_Header_Wall";
+            winHeader.transform.SetParent(rangeRoot.transform, false);
+            winHeader.transform.position = new Vector3(1.6f, 4.05f, 3.5f);
+            winHeader.transform.localScale = new Vector3(0.20f, 0.90f, 4.0f);
+            winHeader.GetComponent<MeshRenderer>().sharedMaterial = matWall;
+
+            // 5.4. Molduras de acero perimetrales del ventanal blindado
+            var frameTop = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            frameTop.name = "Window_Frame_Top";
+            frameTop.transform.SetParent(rangeRoot.transform, false);
+            frameTop.transform.position = new Vector3(1.6f, 3.56f, 3.5f);
+            frameTop.transform.localScale = new Vector3(0.22f, 0.08f, 4.0f);
+            frameTop.GetComponent<MeshRenderer>().sharedMaterial = matSteel;
+
+            var frameBottom = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            frameBottom.name = "Window_Frame_Bottom";
+            frameBottom.transform.SetParent(rangeRoot.transform, false);
+            frameBottom.transform.position = new Vector3(1.6f, 1.04f, 3.5f);
+            frameBottom.transform.localScale = new Vector3(0.22f, 0.08f, 4.0f);
+            frameBottom.GetComponent<MeshRenderer>().sharedMaterial = matSteel;
+
+            var frameRight = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            frameRight.name = "Window_Frame_Right";
+            frameRight.transform.SetParent(rangeRoot.transform, false);
+            frameRight.transform.position = new Vector3(1.6f, 2.30f, 5.46f);
+            frameRight.transform.localScale = new Vector3(0.22f, 2.44f, 0.08f);
+            frameRight.GetComponent<MeshRenderer>().sharedMaterial = matSteel;
+
+            var frameLeft = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            frameLeft.name = "Window_Frame_Left";
+            frameLeft.transform.SetParent(rangeRoot.transform, false);
+            frameLeft.transform.position = new Vector3(1.6f, 2.30f, 1.54f);
+            frameLeft.transform.localScale = new Vector3(0.22f, 2.44f, 0.08f);
+            frameLeft.GetComponent<MeshRenderer>().sharedMaterial = matSteel;
+
+            // 5.5. Cristal balístico transparente limpio (sin elementos negros que lo obstruyan)
             var glassWindow = GameObject.CreatePrimitive(PrimitiveType.Cube);
             glassWindow.name = "Divider_Ballistic_Glass";
             glassWindow.transform.SetParent(rangeRoot.transform, false);
-            glassWindow.transform.position = new Vector3(1.6f, 2.4f, 3.5f);
-            glassWindow.transform.localScale = new Vector3(0.06f, 2.8f, 4.0f);
+            glassWindow.transform.position = new Vector3(1.6f, 2.30f, 3.5f);
+            glassWindow.transform.localScale = new Vector3(0.06f, 2.44f, 3.84f);
             glassWindow.GetComponent<MeshRenderer>().sharedMaterial = matGlass;
 
-            // 5.5. Pared lateral izquierda downrange (desde el final del taller Z=5.5m hasta el fondo Z=28.0m)
+            // 5.6. Pared lateral izquierda downrange (desde el final del taller Z=5.5m hasta el fondo Z=28.0m)
             var wallLeftDownrange = GameObject.CreatePrimitive(PrimitiveType.Cube);
             wallLeftDownrange.name = "Range_Downrange_Left_Wall";
             wallLeftDownrange.transform.SetParent(rangeRoot.transform, false);
@@ -731,24 +771,35 @@ namespace VRRangeAcademy.Editor
             lintel.transform.localScale = new Vector3(0.24f, 0.35f, 2.0f);
             lintel.GetComponent<MeshRenderer>().sharedMaterial = matSteel;
 
-            // Cartel luminoso indicador sobre el acceso
-            BuildDistanceLabel(frameRoot.transform, new Vector3(1.58f, 2.65f, 0.5f), "POLÍGONO DE TIRO >>>", 90f);
+            // Muro superior sobre el acceso (Z=-0.5m a 1.5m, Y=3.075m a 4.5m) -> Sella 100% sobre la puerta hasta el techo
+            var doorHeader = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            doorHeader.name = "Door_Header_Wall";
+            doorHeader.transform.SetParent(frameRoot.transform, false);
+            doorHeader.transform.position = new Vector3(1.6f, 3.7875f, 0.5f);
+            doorHeader.transform.localScale = new Vector3(0.20f, 1.425f, 2.0f);
+            doorHeader.GetComponent<MeshRenderer>().sharedMaterial = matWall;
 
-            // Compuerta corrediza blindada: posicionada abierta a un lado y SIN collider físico bloqueante
-            var doorObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            doorObj.name = "Range_Security_Gate";
-            doorObj.transform.SetParent(rangeRoot.transform, false);
-            doorObj.transform.position = new Vector3(1.6f, 1.4f, 2.0f); // Abierta hacia Z+
-            doorObj.transform.localScale = new Vector3(0.12f, 2.6f, 1.2f);
-            doorObj.GetComponent<MeshRenderer>().sharedMaterial = matSteel;
-            // Remover collider para garantizar paso 100% libre y transitable al caminar
-            Object.DestroyImmediate(doorObj.GetComponent<Collider>());
-            doorTrans = doorObj.transform;
+            // Placa trasera sólida para la señalización (evita que el texto se vea al revés desde el polígono)
+            var signBackplate = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            signBackplate.name = "Door_Sign_Backplate";
+            signBackplate.transform.SetParent(frameRoot.transform, false);
+            signBackplate.transform.position = new Vector3(1.6f, 2.65f, 0.5f);
+            signBackplate.transform.localScale = new Vector3(0.04f, 0.36f, 1.8f);
+            signBackplate.GetComponent<MeshRenderer>().sharedMaterial = matSteel;
+            Object.DestroyImmediate(signBackplate.GetComponent<Collider>());
+
+            // Cartel luminoso indicador hacia el taller
+            BuildDistanceLabel(frameRoot.transform, new Vector3(1.57f, 2.65f, 0.5f), "POLÍGONO DE TIRO >>>", 90f);
+            // Cartel luminoso indicador hacia el polígono
+            BuildDistanceLabel(frameRoot.transform, new Vector3(1.63f, 2.65f, 0.5f), "TALLER DE ARMERÍA <<<", -90f);
+
+            // Sin compuerta negra bloqueante en el cristal: cristal 100% despejado y transitable
+            doorTrans = null;
 
             // Baliza de acceso LED sobre la puerta (Verde: acceso autorizado)
             var beaconGo = new GameObject("Range_Access_Beacon");
             beaconGo.transform.SetParent(rangeRoot.transform, false);
-            beaconGo.transform.position = new Vector3(1.6f, 3.15f, 0.5f);
+            beaconGo.transform.position = new Vector3(1.6f, 3.25f, 0.5f);
             beaconLight = beaconGo.AddComponent<Light>();
             beaconLight.type = LightType.Point;
             beaconLight.color = new Color(0.1f, 1.0f, 0.4f);

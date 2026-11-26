@@ -77,6 +77,8 @@ namespace VRRangeAcademy.UI
 
         public void OnStartTrainingClicked()
         {
+            PlayerPrefs.SetInt("DirectToRange", 0);
+            PlayerPrefs.Save();
             PlaySound(clickSound, 800f);
             ShowToast("Iniciando Capacitación de Manipulación Segura...", 2.5f);
             StartCoroutine(LoadSceneDelayed(trainingSceneName, 1.2f));
@@ -85,8 +87,9 @@ namespace VRRangeAcademy.UI
         public void OnFreeRangeClicked()
         {
             PlayerPrefs.SetInt("DirectToRange", 1);
+            PlayerPrefs.Save();
             PlaySound(clickSound, 800f);
-            ShowToast("Accediendo al Polígono de Tiro...", 2.0f);
+            ShowToast("Accediendo al Polígono de Tiro Libre...", 2.0f);
             StartCoroutine(LoadSceneDelayed(freeRangeSceneName, 0.8f));
         }
 

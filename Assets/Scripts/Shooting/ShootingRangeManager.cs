@@ -55,23 +55,38 @@ namespace VRRangeAcademy.Shooting
             SetLightStatus(false);
         }
 
-        public void UnlockRange(string weaponName)
+        public void UnlockRange(string weaponName, bool instant = false)
         {
-            if (isRangeUnlocked) return;
-            isRangeUnlocked = true;
             activeWeaponName = weaponName;
 
-            SetLightStatus(true);
-            PlaySound(accessGrantedClip, 1.1f);
-
-            // Animar apertura de puerta de seguridad hacia el polígono
-            if (securityDoor != null)
+            if (!isRangeUnlocked)
             {
-                StartCoroutine(AnimateDoorOpen());
+                isRangeUnlocked = true;
+                SetLightStatus(true);
+                PlaySound(accessGrantedClip, 1.1f);
+
+                // Apertura de puerta de seguridad hacia el polígono
+                if (securityDoor != null)
+                {
+                    if (instant)
+                    {
+                        securityDoor.localPosition = securityDoor.localPosition + doorOpenOffset;
+                    }
+                    else
+                    {
+                        StartCoroutine(AnimateDoorOpen());
+                    }
+                }
             }
 
             UpdateScoreboardUI($"LÍNEA DE TIRO HABILITADA | ARMA: {activeWeaponName.ToUpper()}");
-            ShowHitToast($"<color=#00FF99>[!] ACCESO AUTORIZADO AL POLÍGONO DE TIRO</color>\nDirígete a la línea de fuego para iniciar la prueba balística.");
+            ShowHitToast($"<color=#00FF99>[!] POLÍGONO DE TIRO HABILITADO</color>\nArma: <b>{activeWeaponName}</b> lista para disparar.");
+        }
+
+        public void SetActiveWeapon(string weaponName)
+        {
+            activeWeaponName = weaponName;
+            RefreshScoreDisplay();
         }
 
         private void SetLightStatus(bool unlocked)

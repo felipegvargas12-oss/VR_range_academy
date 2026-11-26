@@ -48,6 +48,7 @@ namespace VRRangeAcademy.Assembly
 
         [Header("Modo de Banco (Desarme / Ensamble)")]
         public WorkbenchMode currentMode = WorkbenchMode.Disassembly;
+        public bool IsDirectRangeMode { get; private set; } = false;
 
         [Header("Definición de Armas")]
         [SerializeField] private List<WeaponData> availableWeapons = new List<WeaponData>();
@@ -115,19 +116,80 @@ namespace VRRangeAcademy.Assembly
         private void Start()
         {
             HookUI();
-            LoadWeapon(currentWeaponIndex);
 
             if (PlayerPrefs.GetInt("DirectToRange", 0) == 1)
             {
                 PlayerPrefs.SetInt("DirectToRange", 0);
-                StartCoroutine(DelayedProceedToRange());
+                PlayerPrefs.Save();
+                IsDirectRangeMode = true;
+            }
+
+            if (IsDirectRangeMode)
+            {
+                EnterDirectRangeMode();
+            }
+            else
+            {
+                LoadWeapon(currentWeaponIndex);
             }
         }
 
-        private IEnumerator DelayedProceedToRange()
+        public void EnterDirectRangeMode()
         {
-            yield return null;
-            OnProceedToShootingRange();
+            currentMode = WorkbenchMode.Assembly;
+            isAssemblyCompleted = true;
+            isDisassemblyCompleted = true;
+
+            if (panelCompletion != null) panelCompletion.SetActive(false);
+
+            // 1. Limpiar cualquier ensamble previo
+            ClearActiveAssembly();
+
+            // 2. Colocar el arma armada en la mesa de trabajo (sin flecha de desarme)
+            if (availableWeapons != null && currentWeaponIndex < availableWeapons.Count)
+            {
+                var curW = availableWeapons[currentWeaponIndex];
+                BuildWeaponHologram(curW);
+                if (hologramContainer != null)
+                {
+                    var ghost = hologramContainer.Find("ReferenceGhost_" + curW.weaponId);
+                    if (ghost != null) ghost.gameObject.SetActive(false);
+                }
+
+                BuildWeaponPiecesOnTable(curW);
+                for (int i = 0; i < activePieces.Count; i++)
+                {
+                    if (activePieces[i] != null)
+                    {
+                        activePieces[i].SnapToSocketImmediate();
+                    }
+                }
+
+                if (guidanceArrow != null) guidanceArrow.SetVisible(false);
+
+                // Configurar textos del HUD
+                if (txtWeaponTitle != null) txtWeaponTitle.text = $"[POLÍGONO DE TIRO LIBRE] {curW.weaponName.ToUpper()}";
+                if (txtStepCounter != null) txtStepCounter.text = "<color=#00FFAA>[LÍNEA DE TIRO HABILITADA]</color> Tiro Libre Directo";
+                if (txtStepTitle != null) txtStepTitle.text = $"Arma Activa: {curW.weaponName} ({curW.caliber})";
+                if (txtStepDescription != null) txtStepDescription.text = "Dispara a las dianas reactivas (5m, 11m, 18m). Usa [B] para selector de tiro. Teclas 1-4 o [X] para cambiar arma.";
+                if (txtControlsHint != null) txtControlsHint.text = "<b>Disparo:</b> Gatillo / Clic Izq | <b>Mira:</b> Clic Der | <b>Selector:</b> [B] | <b>Cambio de Arma:</b> [1-4] / [X] | <b>Menú:</b> [M]";
+
+                // 3. Equipar arma funcional inmediatamente al jugador
+                EquipFunctionalWeaponToPlayer(curW);
+
+                // 4. Desbloquear polígono de tiro y compuerta inmediatamente
+                if (Shooting.ShootingRangeManager.Instance != null)
+                {
+                    Shooting.ShootingRangeManager.Instance.UnlockRange(curW.weaponName, true);
+                }
+
+                // 5. Teleportar al jugador inmediatamente al Puesto B del polígono frente a las dianas
+                var player = FindAnyObjectByType<AssemblyPlayerController>();
+                if (player != null)
+                {
+                    player.TeleportTo(new Vector3(4.6f, 0f, 5.2f), 0f, 0f);
+                }
+            }
         }
 
         private void Update()
@@ -156,7 +218,15 @@ namespace VRRangeAcademy.Assembly
 
             if (Keyboard.current.xKey.wasPressedThisFrame)
             {
-                ToggleWorkbenchMode();
+                var player = FindAnyObjectByType<AssemblyPlayerController>();
+                if (player != null && player.transform.position.x > 1.6f)
+                {
+                    OnNextWeaponClicked();
+                }
+                else
+                {
+                    ToggleWorkbenchMode();
+                }
             }
 
             if (Keyboard.current.digit1Key.wasPressedThisFrame) SwitchWeapon(0);
@@ -168,9 +238,14 @@ namespace VRRangeAcademy.Assembly
             {
                 OnPrevWeaponClicked();
             }
-            if (Keyboard.current.rightArrowKey.wasPressedThisFrame || Keyboard.current.rKey.wasPressedThisFrame)
+            if (Keyboard.current.rightArrowKey.wasPressedThisFrame || Keyboard.current.eKey.wasPressedThisFrame || Keyboard.current.rKey.wasPressedThisFrame)
             {
                 OnNextWeaponClicked();
+            }
+
+            if (Keyboard.current.mKey.wasPressedThisFrame)
+            {
+                ReturnToMainMenu();
             }
         }
 
@@ -202,7 +277,28 @@ namespace VRRangeAcademy.Assembly
             if (index < 0 || index >= availableWeapons.Count) return;
             currentWeaponIndex = index;
             PlaySound(snapClip, 1.2f);
-            LoadWeapon(currentWeaponIndex);
+
+            var player = FindAnyObjectByType<AssemblyPlayerController>();
+            bool inShootingRange = (player != null && player.transform.position.x > 1.6f) || IsDirectRangeMode;
+
+            if (inShootingRange)
+            {
+                var curW = availableWeapons[currentWeaponIndex];
+                EquipFunctionalWeaponToPlayer(curW);
+                if (Shooting.ShootingRangeManager.Instance != null)
+                {
+                    Shooting.ShootingRangeManager.Instance.UnlockRange(curW.weaponName, true);
+                    Shooting.ShootingRangeManager.Instance.ResetScore();
+                }
+                if (guidanceArrow != null) guidanceArrow.SetVisible(false);
+
+                if (txtWeaponTitle != null) txtWeaponTitle.text = $"[POLÍGONO DE TIRO LIBRE] {curW.weaponName.ToUpper()}";
+                if (txtStepTitle != null) txtStepTitle.text = $"Arma Activa: {curW.weaponName} ({curW.caliber})";
+            }
+            else
+            {
+                LoadWeapon(currentWeaponIndex);
+            }
         }
 
         public void LoadWeapon(int weaponIndex)
@@ -343,7 +439,8 @@ namespace VRRangeAcademy.Assembly
                 }
                 foreach (var col in ghost.GetComponentsInChildren<Collider>())
                 {
-                    Destroy(col);
+                    if (Application.isPlaying) Destroy(col);
+                    else DestroyImmediate(col);
                 }
 
                 // En modo desarme, el arma real está ensamblada con sus piezas físicas,
@@ -368,7 +465,12 @@ namespace VRRangeAcademy.Assembly
                 sphere.transform.SetParent(socketGo.transform, false);
                 sphere.transform.localPosition = Vector3.zero;
                 sphere.transform.localScale = Vector3.one * 0.02f;
-                Destroy(sphere.GetComponent<Collider>());
+                var sphereCol = sphere.GetComponent<Collider>();
+                if (sphereCol != null)
+                {
+                    if (Application.isPlaying) Destroy(sphereCol);
+                    else DestroyImmediate(sphereCol);
+                }
                 if (socketGlowMaterial != null)
                 {
                     sphere.GetComponent<MeshRenderer>().sharedMaterial = socketGlowMaterial;
@@ -721,8 +823,15 @@ namespace VRRangeAcademy.Assembly
             var cam = Camera.main;
             if (cam == null) return;
 
-            var existing = cam.GetComponentInChildren<Shooting.WeaponShootingController>();
-            if (existing != null) Destroy(existing.gameObject);
+            for (int i = cam.transform.childCount - 1; i >= 0; i--)
+            {
+                var child = cam.transform.GetChild(i);
+                if (child.name.StartsWith("Equipped_") || child.GetComponent<Shooting.WeaponShootingController>() != null)
+                {
+                    child.gameObject.SetActive(false);
+                    Destroy(child.gameObject);
+                }
+            }
 
             GameObject prefab = Resources.Load<GameObject>(w.weaponId);
             #if UNITY_EDITOR
@@ -758,6 +867,7 @@ namespace VRRangeAcademy.Assembly
         {
             PlaySound(snapClip, 1.0f);
             if (panelCompletion != null) panelCompletion.SetActive(false);
+            if (guidanceArrow != null) guidanceArrow.SetVisible(false);
 
             // Asegurar que el arma activa esté equipada en el jugador
             EquipActiveWeapon();
@@ -772,17 +882,8 @@ namespace VRRangeAcademy.Assembly
             var player = FindAnyObjectByType<AssemblyPlayerController>();
             if (player != null)
             {
-                var cc = player.GetComponent<CharacterController>();
-                if (cc != null) cc.enabled = false;
-                player.transform.position = new Vector3(4.6f, 0f, 5.2f);
-                player.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
-                if (cc != null) cc.enabled = true;
+                player.TeleportTo(new Vector3(4.6f, 0f, 5.2f), 0f, 0f);
             }
-
-            // Mirar hacia las dianas (+Z)
-            var cam = Camera.main;
-            if (cam != null)
-                cam.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
         }
 
         public void OnReturnToWorkbench()
@@ -793,17 +894,13 @@ namespace VRRangeAcademy.Assembly
             var player = FindAnyObjectByType<AssemblyPlayerController>();
             if (player != null)
             {
-                var cc = player.GetComponent<CharacterController>();
-                if (cc != null) cc.enabled = false;
-                player.transform.position = new Vector3(0f, 0f, 0f);
-                player.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
-                if (cc != null) cc.enabled = true;
+                player.TeleportTo(new Vector3(0f, 0f, 0f), 0f, 15f);
             }
+        }
 
-            // Mirar ligeramente inclinado hacia el banco de trabajo
-            var cam = Camera.main;
-            if (cam != null)
-                cam.transform.rotation = Quaternion.Euler(15f, 0f, 0f);
+        public void ReturnToMainMenu()
+        {
+            UnityEngine.SceneManagement.SceneManager.LoadScene("MainMenu");
         }
 
         public void ResetAssembly()

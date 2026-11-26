@@ -132,17 +132,41 @@ namespace VRRangeAcademy.Assembly
             {
                 if (Keyboard.current.xKey.wasPressedThisFrame)
                 {
-                    WeaponAssemblyManager.Instance?.ToggleWorkbenchMode();
+                    var mgr = Object.FindAnyObjectByType<WeaponAssemblyManager>();
+                    if (mgr != null)
+                    {
+                        if (transform.position.x > 1.6f) mgr.OnNextWeaponClicked();
+                        else mgr.ToggleWorkbenchMode();
+                    }
                 }
 
                 if (Keyboard.current.tKey.wasPressedThisFrame)
                 {
                     ToggleBetweenWorkbenchAndRange();
                 }
+
+                if (Keyboard.current.mKey.wasPressedThisFrame)
+                {
+                    var mgr = Object.FindAnyObjectByType<WeaponAssemblyManager>();
+                    mgr?.ReturnToMainMenu();
+                }
             }
 #else
-            if (Input.GetKeyDown(KeyCode.X)) WeaponAssemblyManager.Instance?.ToggleWorkbenchMode();
+            if (Input.GetKeyDown(KeyCode.X))
+            {
+                var mgr = Object.FindAnyObjectByType<WeaponAssemblyManager>();
+                if (mgr != null)
+                {
+                    if (transform.position.x > 1.6f) mgr.OnNextWeaponClicked();
+                    else mgr.ToggleWorkbenchMode();
+                }
+            }
             if (Input.GetKeyDown(KeyCode.T)) ToggleBetweenWorkbenchAndRange();
+            if (Input.GetKeyDown(KeyCode.M))
+            {
+                var mgr = Object.FindAnyObjectByType<WeaponAssemblyManager>();
+                mgr?.ReturnToMainMenu();
+            }
 #endif
 
             // Atajos de mandos VR (Meta Quest 3)
@@ -175,6 +199,23 @@ namespace VRRangeAcademy.Assembly
                     mgr.OnReturnToWorkbench();
                 }
             }
+        }
+
+        public void TeleportTo(Vector3 targetPosition, float targetYaw = 0f, float targetPitch = 0f)
+        {
+            if (characterController != null) characterController.enabled = false;
+
+            transform.position = targetPosition;
+            yaw = targetYaw;
+            pitch = targetPitch;
+            transform.rotation = Quaternion.Euler(0f, targetYaw, 0f);
+
+            if (playerCamera != null && !XRSettings.isDeviceActive)
+            {
+                playerCamera.transform.localRotation = Quaternion.Euler(targetPitch, 0f, 0f);
+            }
+
+            if (characterController != null) characterController.enabled = true;
         }
 
         private void CheckShootingRangeZone()
@@ -461,7 +502,18 @@ namespace VRRangeAcademy.Assembly
             }
             if (vrToggleMode && !wasVrToggleModePressed)
             {
-                WeaponAssemblyManager.Instance?.ToggleWorkbenchMode();
+                var mgr = WeaponAssemblyManager.Instance;
+                if (mgr != null)
+                {
+                    if (transform.position.x > 1.6f)
+                    {
+                        mgr.OnNextWeaponClicked();
+                    }
+                    else
+                    {
+                        mgr.ToggleWorkbenchMode();
+                    }
+                }
             }
             wasVrToggleModePressed = vrToggleMode;
 
